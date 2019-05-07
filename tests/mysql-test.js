@@ -22,8 +22,10 @@ describe('MySQL', function() {
 
 	let fullTableName;
 
+	const mysql = new MySQL({});
+
 	class Model {
-		static get table() {
+		getTable() {
 			return 'table';
 		}
 	}
@@ -39,8 +41,9 @@ describe('MySQL', function() {
 		});
 
 		dummyModel = new Model();
+		dummyModel.dbname = 'dbname';
 
-		fullTableName = `${dummyModel.dbname}.${dummyModel.constructor.table}`;
+		fullTableName = `${dummyModel.dbname}.${dummyModel.getTable()}`;
 	});
 
 	after(() => {
@@ -62,11 +65,11 @@ describe('MySQL', function() {
 
 			const stub = stubExecute([]);
 
-			const result = await dummyModel.get(params);
+			const result = await mysql.get(dummyModel, params);
 
 			assert.deepEqual(result, []);
 
-			const resultTotals = await dummyModel.getTotals();
+			const resultTotals = await mysql.getTotals(dummyModel);
 
 			assert.deepEqual(resultTotals, { total: 0, pages: 0 });
 
@@ -82,7 +85,7 @@ describe('MySQL', function() {
 
 			const stubResults = stubExecute([{ result: 1 }, { result: 2 }]);
 
-			const result = await dummyModel.get(params);
+			const result = await mysql.get(dummyModel, params);
 
 			assert.deepEqual(result, [{ result: 1 }, { result: 2 }]);
 
@@ -92,7 +95,7 @@ describe('MySQL', function() {
 
 			const stubTotals = stubExecute([{ count: 650 }]);
 
-			const resultTotals = await dummyModel.getTotals();
+			const resultTotals = await mysql.getTotals(dummyModel);
 
 			assert.deepEqual(resultTotals, {
 				total: 650,
@@ -112,7 +115,7 @@ describe('MySQL', function() {
 			const stubCall = sinon.stub(MySQL.prototype, 'call')
 				.returns([{ Field: 'foo', extra: 1 }]);
 
-			const fields = await dummyModel.getFields();
+			const fields = await mysql.getFields(dummyModel);
 
 			assert.deepEqual(fields, {
 				foo: { Field: 'foo', extra: 1 }
@@ -156,7 +159,7 @@ describe('MySQL', function() {
 
 			it('when attempting to save with valid fields', async function() {
 
-				const result = await dummyModel.save({
+				const result = await mysql.save(dummyModel, {
 					foo: 'bar',
 					wrongField: 2
 				});
@@ -173,7 +176,7 @@ describe('MySQL', function() {
 
 			it('when attempting to insert with valid fields', async function() {
 
-				const result = await dummyModel.insert({
+				const result = await mysql.insert(dummyModel, {
 					foo: 'bar',
 					dateCreated: (Date.now() / 1000 | 0),
 					wrongField: 4
@@ -190,7 +193,7 @@ describe('MySQL', function() {
 
 			it('when attempting to update with valid fields', async function() {
 
-				await dummyModel.update({
+				await mysql.update(dummyModel, {
 					foo: 'bar'
 				});
 
@@ -203,7 +206,7 @@ describe('MySQL', function() {
 
 			it('when attempting to update with valid fields and filter', async function() {
 
-				await dummyModel.update({
+				await mysql.update(dummyModel, {
 					_filters: { foo: 'barr' },
 					foo: 'bar',
 					date_test: true
@@ -221,11 +224,11 @@ describe('MySQL', function() {
 		describe('should throw', function() {
 
 			it('when attempting to save and fields not found in table structure', async function() {
-				await assert.rejects(() => dummyModel.save({ wrongField: 23 }), MySQLError);
+				await assert.rejects(() => mysql.save(dummyModel, { wrongField: 23 }), MySQLError);
 			});
 
 			it('when attempting to update and fields not found in table structure', async function() {
-				await assert.rejects(() => dummyModel.update({ wrongField: 23 }), MySQLError);
+				await assert.rejects(() => mysql.update(dummyModel, { wrongField: 23 }), MySQLError);
 			});
 
 		});
@@ -260,22 +263,18 @@ describe('MySQL', function() {
 
 		it('should throw when no filters as object given', async function() {
 
-			await assert.rejects(() => dummyModel.remove(), MySQLError);
+			await assert.rejects(() => mysql.remove(dummyModel), MySQLError);
 
 			await Promise.all(
 				[1, 'foo', ['foo', 'bar'], false, {}]
-					.map(async data => assert.rejects(() => dummyModel.remove(data), MySQLError))
+					.map(async data => assert.rejects(() => mysql.remove(dummyModel, data), MySQLError))
 			);
 
 		});
 
-		it('should throw when no id given in removeById method', async function() {
-			await assert.rejects(() => dummyModel.removeById(), MySQLError);
-		});
-
 		it('should remove when valid fields given', async function() {
 
-			await dummyModel.remove({
+			await mysql.remove(dummyModel, {
 				foo: 'bar'
 			});
 
@@ -294,18 +293,14 @@ describe('MySQL', function() {
 			const now = Date.now() / 1000 | 0;
 
 			const dates = [
-				now - dummyModel.db.constructor.maxIddleTimeout - 50 // 50 seconds after iddle timeout limit
+				now - MySQL.maxIddleTimeout - 50 // 50 seconds after iddle timeout limit
 			];
 
 			dates.forEach(lastActivity => {
-				assert(dummyModel
-					.db
-					.shouldDestroyConnectionPool(lastActivity));
+				assert(mysql.shouldDestroyConnectionPool(lastActivity));
 			});
 
-			assert(dummyModel
-				.db
-				.shouldDestroyConnectionPool());
+			assert(mysql.shouldDestroyConnectionPool());
 		});
 
 		it('should return false', function() {
@@ -313,13 +308,11 @@ describe('MySQL', function() {
 			const now = Date.now() / 1000 | 0;
 
 			const dates = [
-				now - dummyModel.db.constructor.maxIddleTimeout + 50 // 50 seconds before iddle timeout limit
+				now - MySQL.maxIddleTimeout + 50 // 50 seconds before iddle timeout limit
 			];
 
 			dates.forEach(lastActivity => {
-				assert(!dummyModel
-					.db
-					.shouldDestroyConnectionPool(lastActivity));
+				assert(!mysql.shouldDestroyConnectionPool(lastActivity));
 			});
 
 		});
@@ -332,37 +325,19 @@ describe('MySQL', function() {
 
 			const threadId = 123;
 
-			dummyModel
-				.db
-				.constructor
-				.connectionPool = { threadId };
+			MySQL.connectionPool = { threadId };
 
-			assert(typeof dummyModel
-				.db
-				.constructor
-				.connectionPool, 'Object');
+			assert(typeof MySQL.connectionPool, 'Object');
 
-			assert(typeof dummyModel
-				.db
-				.constructor
-				.connectionPool[threadId], 'Object');
+			assert(typeof MySQL.connectionPool[threadId], 'Object');
 
-			assert(typeof dummyModel
-				.db
-				.constructor
-				.connectionPool[threadId].lastActivity, 'number');
+			assert(typeof MySQL.connectionPool[threadId].lastActivity, 'number');
 
 			const now = Date.now() / 1000 | 0;
 
-			assert(dummyModel
-				.db
-				.constructor
-				.connectionPool[threadId].lastActivity >= now);
+			assert(MySQL.connectionPool[threadId].lastActivity >= now);
 
-			assert.equal(dummyModel
-				.db
-				.constructor
-				.connectionPool[threadId].id, threadId);
+			assert.equal(MySQL.connectionPool[threadId].id, threadId);
 
 		});
 
@@ -375,7 +350,7 @@ describe('MySQL', function() {
 			const values = [['foo', 'test'], ['bar', 1]];
 
 			for(const [field, value] of values) {
-				const rows = dummyModel.db.constructor.buildFieldQuery(field, value);
+				const rows = MySQL.buildFieldQuery(field, value);
 
 				assert.deepEqual(rows.where, [`${field} = :${field}`]);
 				assert.deepEqual(rows.placeholders, { [field]: value });
@@ -389,7 +364,7 @@ describe('MySQL', function() {
 
 			let index = 0;
 			for(const [field, value] of values) {
-				const rows = dummyModel.db.constructor.buildFieldQuery(field, value, '', '_' + index);
+				const rows = MySQL.buildFieldQuery(field, value, '', '_' + index);
 
 				const ph = `${field}_${index}`;
 				assert.deepEqual(rows.where, [`${field} = :${ph}`]);
@@ -406,7 +381,7 @@ describe('MySQL', function() {
 
 			let index = 0;
 			for(const [field, value] of values) {
-				const rows = dummyModel.db.constructor.buildFieldQuery(field, value, '', '_' + index);
+				const rows = MySQL.buildFieldQuery(field, value, '', '_' + index);
 
 				const ph = `${field}_${index}`;
 				assert.deepEqual(rows.where, [`${field} IS NULL`]);
@@ -419,7 +394,7 @@ describe('MySQL', function() {
 
 		it('Should build field query correctly for field with multi values', function() {
 
-			const res = dummyModel.db.constructor.buildFieldQuery('foo', [1, '3']);
+			const res = MySQL.buildFieldQuery('foo', [1, '3']);
 
 			assert.deepEqual(res.where, ['foo IN (:foo_0,:foo_1)']);
 			assert.deepEqual(res.placeholders, { foo_0: 1, foo_1: '3' });
@@ -428,7 +403,7 @@ describe('MySQL', function() {
 
 		it('Should build field query correctly for field with multi values including NULL', function() {
 
-			const res = dummyModel.db.constructor.buildFieldQuery('foo', [1, '3', null]);
+			const res = MySQL.buildFieldQuery('foo', [1, '3', null]);
 			assert.deepEqual(res.where, ['(foo IS NULL OR foo IN (:foo_0,:foo_1))']);
 			assert.deepEqual(res.placeholders, { foo_0: 1, foo_1: '3' });
 
@@ -462,9 +437,7 @@ describe('MySQL', function() {
 			};
 
 
-			const result = dummyModel
-				.db
-				.mapFields(data, fieldsMap);
+			const result = mysql.mapFields(data, fieldsMap);
 
 			assert.equal(result.orderFormId, undefined);
 			assert.equal(result.checkBoolean, undefined);
@@ -505,9 +478,7 @@ describe('MySQL', function() {
 				checkString: 'string'
 			}];
 
-			const results = dummyModel
-				.db
-				.mapFields(data, fieldsMap);
+			const results = mysql.mapFields(data, fieldsMap);
 
 			results.forEach(result => {
 				assert.equal(result.orderFormId, undefined);
@@ -537,9 +508,7 @@ describe('MySQL', function() {
 				nomap: 5
 			}];
 
-			const results = dummyModel
-				.db
-				.mapFields(data, fieldsMap);
+			const results = mysql.mapFields(data, fieldsMap);
 
 			results.forEach(result => {
 				assert.equal(result[Symbol.for('mock')], 'symbol');

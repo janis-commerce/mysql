@@ -3,9 +3,13 @@
 const mysql = require('mysql2');
 const knex = require('knex');
 
+const logger = require('@janiscommerce/logger');
+
 const MySQLError = require('./mysql-error');
 
-const { QueryBuilder } = require('./query-builder');
+const Utils = require('./../utils');
+
+const { QueryBuilder } = require('./../query-builder');
 
 const MAX_IDDLE_TIMEOUT = 60 * 5; // In seconds
 const CONNECTION_LIMIT = 10;

@@ -3,7 +3,7 @@
 const assert = require('assert');
 const sinon = require('sinon');
 
-const { QueryBuilder, QueryBuilderError } = coreRequire('./private/database/query-builder');
+const { QueryBuilder, QueryBuilderError } = require('./../query-builder');
 
 /* eslint-disable prefer-arrow-callback */
 

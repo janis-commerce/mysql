@@ -1,20 +1,14 @@
 'use strict';
 
-const logger = coreRequire('./modules/logger');
-const Utils = coreRequire('./modules/utils');
+const logger = require('@janiscommerce/logger');
+
+const Utils = require('./../utils');
 
 const QueryBuilderError = require('./query-builder-error');
 
 const JOIN_DEFAULT_METHOD = 'left';
 const JOIN_DEFAULT_OPERATOR = '=';
 
-/**
-* @namespace
-*
-* QueryBuilder in Confluence:
-* 		https://fizzmod.atlassian.net/wiki/spaces/FIZ/pages/484016144/Query+Builder
-*
-*/
 class QueryBuilder {
 
 	static get filterTypes() {
