@@ -3,9 +3,10 @@
 const assert = require('assert');
 const sinon = require('sinon');
 
-const { MySQL, MySQLError } = require('./../mysql');
+const QueryBuilder = require('@janiscommerce/query-builder');
 
-const { QueryBuilder } = require('./../query-builder');
+const { MySQLError } = require('./../mysql');
+const MySQL = require('./../index');
 
 /* eslint-disable prefer-arrow-callback */
 
