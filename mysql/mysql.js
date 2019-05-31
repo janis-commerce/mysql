@@ -37,10 +37,17 @@ class MySQL {
 		return '_joins';
 	}
 
+	/**
+	 * @returns {object} connection pool
+	 */
 	static get connectionPool() {
 		return this._connectionPool || {};
 	}
 
+	/**
+	 * Set a connection pool
+	 * @param {object} connection Pool connection data
+	 */
 	static set connectionPool(connection) {
 
 		if(!this._connectionPool)
@@ -53,6 +60,10 @@ class MySQL {
 		};
 	}
 
+	/**
+	 * Constructor
+	 * @param {object} config Database configuration.
+	 */
 	constructor(config) {
 		this.config = {
 			host: config.host,
@@ -66,6 +77,10 @@ class MySQL {
 		};
 	}
 
+	/**
+	 * Returns a MySQL pool, if it didn't exist create one.
+	 * @returns {object} MySQL pool instance
+	 */
 	get pool() {
 
 		if(!this._pool)
@@ -74,7 +89,6 @@ class MySQL {
 		return this._pool;
 	}
 
-	/* istanbul ignore next */
 	get knex() {
 
 		if(!this._knex) {
@@ -93,6 +107,13 @@ class MySQL {
 		return this._knex;
 	}
 
+	/**
+	 * Search in the database.
+	 *
+	 * @param {Class} model Model Class
+	 * @param {object} params object with the parametres to search.
+	 * @returns {Promise} Results of the search
+	 */
 	async get(model, params) {
 
 		const newParams = { ...params }; // necesario para no alterar params y no afectar a las keys de cache
@@ -157,13 +178,22 @@ class MySQL {
 		return fields;
 	}
 
+	/**
+	 * Save an item in the SQL database
+	 * @param {Class} model Model Class
+	 * @param {object} item object to saved
+	 * @returns {number} Rows affected
+	 */
 	async save(model, item) {
 		return this.insert(model, item, true);
 	}
 
 	/**
 	*	Insert/update a row
+	*	@param {Class} model - Model Class
 	*	@param {object} item - The item to insert
+	*	@param {boolean} allowUpsert - If upsert is allowed
+	*	@returns {number} Rows affected
 	*/
 
 	async insert(model, item, allowUpsert = false) {
@@ -285,7 +315,6 @@ class MySQL {
 		return this.call(statement, placeholders);
 	}
 
-	/* istanbul ignore next */
 	call(query, placeholders = {}) {
 		return new Promise((resolve, reject) => {
 			this.query(query, placeholders, (err, rows) => {
@@ -297,7 +326,6 @@ class MySQL {
 		});
 	}
 
-	/* istanbul ignore next */
 	query(statement, placeholders, callback) {
 
 		this.pool.getConnection((connErr, connection) => {
@@ -643,7 +671,7 @@ class MySQL {
 		return parsed;
 	}
 
-	/* istanbul ignore next */
+
 	getConnection() {
 		return new Promise((resolve, reject) => {
 
@@ -661,7 +689,7 @@ class MySQL {
 		});
 	}
 
-	/* istanbul ignore next */
+
 	end() {
 		return new Promise((resolve, reject) => {
 
@@ -687,7 +715,7 @@ class MySQL {
 			return query;
 
 		return query.replace(/:(\w+)/g, (txt, key) => {
-
+			console.log(txt)
 			if(values.hasOwnProperty(key))
 				return mysql.escape(values[key]);
 
@@ -738,7 +766,7 @@ class MySQL {
 	/**
 	 * No need to create indexes in this Database
 	 */
-	/* istanbul ignore next */
+
 	async createIndexes() {
 		return true;
 	}

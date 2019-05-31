@@ -52,6 +52,64 @@ describe('MySQL', function() {
 		stubBuild.restore();
 	});
 
+	describe('static getters', () => {
+		it('should return default limit', () => {
+			const DEFAULT_LIMIT = 500;
+
+			assert.equal(DEFAULT_LIMIT, MySQL.defaultLimit);
+		});
+
+		it('should return max iddle timeout', () => {
+			const MAX_IDDLE_TIMEOUT = 60 * 5;
+
+			assert.equal(MAX_IDDLE_TIMEOUT, MySQL.maxIddleTimeout);
+		});
+
+		it('should return "_filters"', () => {
+			assert.equal('_filters', MySQL.filters);
+		});
+
+		it('should return "_joins"', () => {
+			assert.equal('_joins', MySQL.joins);
+		});
+
+		it('should return "_columns"', () => {
+			assert.equal('_columns', MySQL.columns);
+		});
+
+	});
+
+	describe('connecionPool - setter and getter', function() {
+
+		it('should return empty object when no pool connection was set', () => {
+
+			assert(typeof MySQL.connectionPool, 'Object');
+
+			assert.deepEqual({}, MySQL.connectionPool, 'it should by {}');
+		});
+
+		it('should set a connection', function() {
+
+			const threadId = 123;
+
+			MySQL.connectionPool = { threadId };
+
+			assert(typeof MySQL.connectionPool, 'Object');
+
+			assert(typeof MySQL.connectionPool[threadId], 'Object');
+
+			assert(typeof MySQL.connectionPool[threadId].lastActivity, 'number');
+
+			const now = Date.now() / 1000 | 0;
+
+			assert(MySQL.connectionPool[threadId].lastActivity >= now);
+
+			assert.equal(MySQL.connectionPool[threadId].id, threadId);
+
+		});
+
+	});
+
 	describe('get() getTotals()', function() {
 
 		const stubExecute = result => sinon.stub(QueryBuilder.prototype, 'execute').callsFake(() => result);
@@ -320,30 +378,6 @@ describe('MySQL', function() {
 
 	});
 
-	describe('connecionPool - setter and getter', function() {
-
-		it('should set a connection', function() {
-
-			const threadId = 123;
-
-			MySQL.connectionPool = { threadId };
-
-			assert(typeof MySQL.connectionPool, 'Object');
-
-			assert(typeof MySQL.connectionPool[threadId], 'Object');
-
-			assert(typeof MySQL.connectionPool[threadId].lastActivity, 'number');
-
-			const now = Date.now() / 1000 | 0;
-
-			assert(MySQL.connectionPool[threadId].lastActivity >= now);
-
-			assert.equal(MySQL.connectionPool[threadId].id, threadId);
-
-		});
-
-	});
-
 	describe('Build field query', function() {
 
 		it('Should build field query correctly for a single value field', function() {
@@ -518,6 +552,5 @@ describe('MySQL', function() {
 
 		});
 	});
-
 
 });
