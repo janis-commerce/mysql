@@ -39,6 +39,8 @@ npm install @janiscommerce/mysql
 
     Performs a multi insert.
 
+* `remove()`
+
 ## Config
 
 The configuration object looks like:

@@ -258,7 +258,6 @@ class MySQL {
 	*	Update a row
 	*	@param {object} item - The date to update
 	*/
-
 	async update(model, item) {
 
 		const table = model.getTable();
@@ -316,16 +315,60 @@ class MySQL {
 	}
 
 	call(query, placeholders = {}) {
-		return new Promise((resolve, reject) => {
+		return new Promise(async(resolve, reject) => {
+			try {
+				const connection = await this.getConnection();
+				connection.query(query, placeholders, (err, rows) => {
+
+					if(err) {
+						logger.error('query', err.errno, err.code, err.message);
+						logger.debug(query, placeholders);
+						reject(err);
+					}
+
+					connection.release();
+					resolve(rows);
+				});
+
+			} catch(error) {
+				if(error.code === 'ER_CON_COUNT_ERROR') // Too Many Connections
+					return setTimeout(() => this.call.apply(this, arguments), 500); // Retry
+
+				logger.error('Database', error);
+				reject(error);
+
+			}
+			/* 
 			this.query(query, placeholders, (err, rows) => {
 				if(err)
 					reject(err);
 
 				resolve(rows);
-			});
+			}); */
 		});
 	}
 
+	/**
+	 * Async
+	 * @returns {Promise} MySQL connection
+	 */
+	getConnection() {
+		return new Promise((resolve, reject) => {
+
+			this.pool.getConnection((err, connection) => {
+				if(err)
+					reject(err);
+
+				connection.config.queryFormat = this.queryFormat.bind(this);
+
+				this.constructor.connectionPool = connection;
+				resolve(connection);
+			});
+
+		});
+	}
+
+/* 
 	query(statement, placeholders, callback) {
 
 		this.pool.getConnection((connErr, connection) => {
@@ -361,13 +404,12 @@ class MySQL {
 			});
 		});
 	}
-
+ */
 	/**
 	*	Perform a multi insert
 	*	@param {array} items - The items to insert
 	*	@param {string} [table=this.constructor.table] - The table
 	*/
-
 	async multiInsert(model, items) {
 
 		if(!items || !items.length) {
@@ -485,6 +527,7 @@ class MySQL {
 	 * @param {string} table The table
 	 * @return {object} { where and placeholders }
 	 */
+
 	async prepareFields(model, fields, tableAlias = '', suffix = '') {
 
 		let where = [];
@@ -532,6 +575,7 @@ class MySQL {
 	 * @param {Array.<{table: String, type: String, alias: String, condition: String}>} joins - Array of shape [{ table, type, alias, condition }]
 	 * @returns {string}
 	 */
+
 	buildJoins(joins) {
 		if(!joins || !Array.isArray(joins))
 			return '';
@@ -606,9 +650,7 @@ class MySQL {
 	*
 	*/
 
-
 	mapFields(data, map) {
-
 		if(Array.isArray(data))
 			return data.map(item => this.mapItem(item, map));
 
@@ -622,10 +664,7 @@ class MySQL {
 	*	@param {object} [map=this.fieldsMap] - The map
 	*	@private
 	*/
-
-
 	mapItem(item, map) {
-
 		const fields = {};
 
 		//	We use Reflect and not Object.entries/Keys
@@ -646,19 +685,18 @@ class MySQL {
 	*/
 
 	mapField(field, map) {
-
 		if(typeof field === 'symbol')
 			return field;
 
 		let parsed = null;
 
-		Object.entries(map || this.fieldsMap || {}).forEach(([key, value]) => {
+		/* Object.entries(map || this.fieldsMap || {}).forEach(([key, value]) => {
 
 			value = Array.isArray(value) ? value : [value];
 
 			if(value.includes(field))
 				parsed = key;
-		});
+		}); */
 
 		if(!parsed) {
 			// Replace camel case to lower dash format.
@@ -671,25 +709,7 @@ class MySQL {
 		return parsed;
 	}
 
-
-	getConnection() {
-		return new Promise((resolve, reject) => {
-
-			this.pool.getConnection((err, connection) => {
-				if(err)
-					reject(err);
-
-				connection.config.queryFormat = this.queryFormat.bind(this);
-
-				this.constructor.connectionPool = connection;
-
-				resolve(connection);
-			});
-
-		});
-	}
-
-
+	/* istanbul ignore next */
 	end() {
 		return new Promise((resolve, reject) => {
 
@@ -710,12 +730,12 @@ class MySQL {
 		});
 	}
 
+	/* istanbul ignore next */
 	queryFormat(query, values) {
 		if(!values)
 			return query;
 
 		return query.replace(/:(\w+)/g, (txt, key) => {
-			console.log(txt)
 			if(values.hasOwnProperty(key))
 				return mysql.escape(values[key]);
 
@@ -726,8 +746,9 @@ class MySQL {
 	shouldDestroyConnectionPool(lastActivity) {
 		return !lastActivity || ((Date.now() / 1000 | 0) - lastActivity > this.constructor.maxIddleTimeout);
 	}
-
+ 
 	/* istanbul ignore next */
+
 	closeIddleConnections() {
 
 		if(this.closeIddleConnectionsInterval)
@@ -766,10 +787,10 @@ class MySQL {
 	/**
 	 * No need to create indexes in this Database
 	 */
-
+	/* 
 	async createIndexes() {
 		return true;
-	}
+	} */
 }
 
 module.exports = MySQL;

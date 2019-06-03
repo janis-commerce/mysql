@@ -110,82 +110,6 @@ describe('MySQL', function() {
 
 	});
 
-	describe('get() getTotals()', function() {
-
-		const stubExecute = result => sinon.stub(QueryBuilder.prototype, 'execute').callsFake(() => result);
-
-		const testParams = (params, expectedParams) => {
-			assert.deepEqual(params, expectedParams, 'shouldn\'t modify ofiginal params');
-		};
-
-		it('Should return empty results and totals with zero values', async function() {
-
-			const params = {};
-
-			const stub = stubExecute([]);
-
-			const result = await mysql.get(dummyModel, params);
-
-			assert.deepEqual(result, []);
-
-			const resultTotals = await mysql.getTotals(dummyModel);
-
-			assert.deepEqual(resultTotals, { total: 0, pages: 0 });
-
-			testParams(params, {});
-
-			stub.restore();
-		});
-
-		it('Should return results and totals', async function() {
-
-			const originalParams = { someFilter: 'foo', page: 4, limit: 10 };
-			const params = { ...originalParams };
-
-			const stubResults = stubExecute([{ result: 1 }, { result: 2 }]);
-
-			const result = await mysql.get(dummyModel, params);
-
-			assert.deepEqual(result, [{ result: 1 }, { result: 2 }]);
-
-			testParams(params, originalParams);
-
-			stubResults.restore();
-
-			const stubTotals = stubExecute([{ count: 650 }]);
-
-			const resultTotals = await mysql.getTotals(dummyModel);
-
-			assert.deepEqual(resultTotals, {
-				total: 650,
-				page: 4,
-				pageSize: 10,
-				pages: 65
-			});
-
-			stubTotals.restore();
-		});
-	});
-
-	describe('getFields()', function() {
-
-		it('Should return formatted fields', async function() {
-
-			const stubCall = sinon.stub(MySQL.prototype, 'call')
-				.returns([{ Field: 'foo', extra: 1 }]);
-
-			const fields = await mysql.getFields(dummyModel);
-
-			assert.deepEqual(fields, {
-				foo: { Field: 'foo', extra: 1 }
-			});
-
-			assert.equal(stubCall.args[0][0], `SHOW COLUMNS FROM ${fullTableName}`);
-
-			stubCall.restore();
-		});
-	});
-
 	describe('save methods', function() {
 
 		let stubFields;
@@ -278,6 +202,7 @@ describe('MySQL', function() {
 				assert.equal(sanitizeQuery(stubCall.args[0][0]), expectedQuery);
 				assert.deepEqual(stubCall.args[0][1], { set_foo: 'bar', foo: 'barr' });
 			});
+
 		});
 
 		describe('should throw', function() {
@@ -290,6 +215,82 @@ describe('MySQL', function() {
 				await assert.rejects(() => mysql.update(dummyModel, { wrongField: 23 }), MySQLError);
 			});
 
+		});
+	});
+
+	describe('get() getTotals()', function() {
+
+		const stubExecute = result => sinon.stub(QueryBuilder.prototype, 'execute').callsFake(() => result);
+
+		const testParams = (params, expectedParams) => {
+			assert.deepEqual(params, expectedParams, 'shouldn\'t modify ofiginal params');
+		};
+
+		it('Should return empty results and totals with zero values', async function() {
+
+			const params = {};
+
+			const stub = stubExecute([]);
+
+			const result = await mysql.get(dummyModel, params);
+
+			assert.deepEqual(result, []);
+
+			const resultTotals = await mysql.getTotals(dummyModel);
+
+			assert.deepEqual(resultTotals, { total: 0, pages: 0 });
+
+			testParams(params, {});
+
+			stub.restore();
+		});
+
+		it('Should return results and totals', async function() {
+
+			const originalParams = { someFilter: 'foo', page: 4, limit: 10 };
+			const params = { ...originalParams };
+
+			const stubResults = stubExecute([{ result: 1 }, { result: 2 }]);
+
+			const result = await mysql.get(dummyModel, params);
+
+			assert.deepEqual(result, [{ result: 1 }, { result: 2 }]);
+
+			testParams(params, originalParams);
+
+			stubResults.restore();
+
+			const stubTotals = stubExecute([{ count: 650 }]);
+
+			const resultTotals = await mysql.getTotals(dummyModel);
+
+			assert.deepEqual(resultTotals, {
+				total: 650,
+				page: 4,
+				pageSize: 10,
+				pages: 65
+			});
+
+			stubTotals.restore();
+		});
+	});
+
+	describe('getFields()', function() {
+
+		it('Should return formatted fields', async function() {
+
+			const stubCall = sinon.stub(MySQL.prototype, 'call')
+				.returns([{ Field: 'foo', extra: 1 }]);
+
+			const fields = await mysql.getFields(dummyModel);
+
+			assert.deepEqual(fields, {
+				foo: { Field: 'foo', extra: 1 }
+			});
+
+			assert.equal(stubCall.args[0][0], `SHOW COLUMNS FROM ${fullTableName}`);
+
+			stubCall.restore();
 		});
 	});
 
@@ -553,4 +554,35 @@ describe('MySQL', function() {
 		});
 	});
 
+	describe('GetConnection', () => {
+
+		const fakeConnection = {
+			config: {}
+		};
+
+		const fakePoolWithError = {
+			getConnection: cb => cb(new Error('some database error'), null)
+		};
+
+		const fakePoolValid = {
+			getConnection: cb => cb(null, fakeConnection)
+		};
+
+		it('should get Error when connection is not working', async() => {
+
+			const stubPool = sinon.stub(MySQL.prototype, 'pool').get(() => fakePoolWithError);
+			await assert.rejects(mysql.getConnection(), { message: 'some database error' });
+			stubPool.restore();
+		});
+
+		it('should connect and add QueryFormat', async() => {
+			const stubPool = sinon.stub(MySQL.prototype, 'pool').get(() => fakePoolValid);
+			fakeConnection.config.queryFormat = MySQL.queryFormat;
+
+			await assert(typeof mysql.getConnection(), 'object');
+			await assert.deepEqual(await mysql.getConnection(), fakeConnection);
+			stubPool.restore();
+		});
+
+	});
 });
