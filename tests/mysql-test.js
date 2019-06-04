@@ -122,11 +122,11 @@ describe('MySQL', function() {
 			['id', 'foo', 'date_created', 'date_modified'].forEach(field => { fields[field] = field; });
 			fields.date_test = { Field: 'date_test', Type: 'datetime' };
 
-			stubFields = sinon.stub(MySQL.prototype, 'getFields')
+			stubFields = sinon.stub(MySQL.prototype, '_getFields')
 				.returns(fields);
 
-			stubCall = sinon.stub(MySQL.prototype, 'call')
-				.returns({ insertId });
+			stubCall = sinon.stub(MySQL.prototype, '_call')
+				.returns([{ insertId }]);
 		});
 
 		afterEach(() => {
@@ -279,10 +279,10 @@ describe('MySQL', function() {
 
 		it('Should return formatted fields', async function() {
 
-			const stubCall = sinon.stub(MySQL.prototype, 'call')
-				.returns([{ Field: 'foo', extra: 1 }]);
+			const stubCall = sinon.stub(MySQL.prototype, '_call')
+				.returns([[{ Field: 'foo', extra: 1 }]]);
 
-			const fields = await mysql.getFields(dummyModel);
+			const fields = await mysql._getFields(dummyModel);
 
 			assert.deepEqual(fields, {
 				foo: { Field: 'foo', extra: 1 }
@@ -304,10 +304,10 @@ describe('MySQL', function() {
 			const fields = {};
 			['id', 'foo', 'date_created', 'date_modified'].forEach(field => { fields[field] = field; });
 
-			stubFields = sinon.stub(MySQL.prototype, 'getFields')
+			stubFields = sinon.stub(MySQL.prototype, '_getFields')
 				.returns(fields);
 
-			stubCall = sinon.stub(MySQL.prototype, 'call')
+			stubCall = sinon.stub(MySQL.prototype, '_call')
 				.returns(true);
 		});
 
@@ -344,39 +344,20 @@ describe('MySQL', function() {
 
 			assert.equal(sanitizeQuery(stubCall.args[0][0]), expectedQuery);
 		});
-	});
 
-	describe('shouldDestroyConnectionPool', function() {
-
-		it('should return true', function() {
-
-			const now = Date.now() / 1000 | 0;
-
-			const dates = [
-				now - MySQL.maxIddleTimeout - 50 // 50 seconds after iddle timeout limit
-			];
-
-			dates.forEach(lastActivity => {
-				assert(mysql.shouldDestroyConnectionPool(lastActivity));
+		it('should remove when valids fields given but some invalid too', async() => {
+			await mysql.remove(dummyModel, {
+				foo: 'bar',
+				w: true
 			});
 
-			assert(mysql.shouldDestroyConnectionPool());
-		});
+			const expectedQuery = sanitizeQuery(`
+				DELETE FROM ${fullTableName}
+				WHERE foo = :foo`);
 
-		it('should return false', function() {
-
-			const now = Date.now() / 1000 | 0;
-
-			const dates = [
-				now - MySQL.maxIddleTimeout + 50 // 50 seconds before iddle timeout limit
-			];
-
-			dates.forEach(lastActivity => {
-				assert(!mysql.shouldDestroyConnectionPool(lastActivity));
-			});
+			assert.equal(sanitizeQuery(stubCall.args[0][0]), expectedQuery);
 
 		});
-
 	});
 
 	describe('Build field query', function() {
@@ -386,7 +367,7 @@ describe('MySQL', function() {
 			const values = [['foo', 'test'], ['bar', 1]];
 
 			for(const [field, value] of values) {
-				const rows = MySQL.buildFieldQuery(field, value);
+				const rows = MySQL._buildFieldQuery(field, value);
 
 				assert.deepEqual(rows.where, [`${field} = :${field}`]);
 				assert.deepEqual(rows.placeholders, { [field]: value });
@@ -400,7 +381,7 @@ describe('MySQL', function() {
 
 			let index = 0;
 			for(const [field, value] of values) {
-				const rows = MySQL.buildFieldQuery(field, value, '', '_' + index);
+				const rows = MySQL._buildFieldQuery(field, value, '', '_' + index);
 
 				const ph = `${field}_${index}`;
 				assert.deepEqual(rows.where, [`${field} = :${ph}`]);
@@ -417,7 +398,7 @@ describe('MySQL', function() {
 
 			let index = 0;
 			for(const [field, value] of values) {
-				const rows = MySQL.buildFieldQuery(field, value, '', '_' + index);
+				const rows = MySQL._buildFieldQuery(field, value, '', '_' + index);
 
 				const ph = `${field}_${index}`;
 				assert.deepEqual(rows.where, [`${field} IS NULL`]);
@@ -430,7 +411,7 @@ describe('MySQL', function() {
 
 		it('Should build field query correctly for field with multi values', function() {
 
-			const res = MySQL.buildFieldQuery('foo', [1, '3']);
+			const res = MySQL._buildFieldQuery('foo', [1, '3']);
 
 			assert.deepEqual(res.where, ['foo IN (:foo_0,:foo_1)']);
 			assert.deepEqual(res.placeholders, { foo_0: 1, foo_1: '3' });
@@ -439,7 +420,7 @@ describe('MySQL', function() {
 
 		it('Should build field query correctly for field with multi values including NULL', function() {
 
-			const res = MySQL.buildFieldQuery('foo', [1, '3', null]);
+			const res = MySQL._buildFieldQuery('foo', [1, '3', null]);
 			assert.deepEqual(res.where, ['(foo IS NULL OR foo IN (:foo_0,:foo_1))']);
 			assert.deepEqual(res.placeholders, { foo_0: 1, foo_1: '3' });
 
@@ -473,7 +454,7 @@ describe('MySQL', function() {
 			};
 
 
-			const result = mysql.mapFields(data, fieldsMap);
+			const result = mysql._mapFields(data, fieldsMap);
 
 			assert.equal(result.orderFormId, undefined);
 			assert.equal(result.checkBoolean, undefined);
@@ -514,7 +495,7 @@ describe('MySQL', function() {
 				checkString: 'string'
 			}];
 
-			const results = mysql.mapFields(data, fieldsMap);
+			const results = mysql._mapFields(data, fieldsMap);
 
 			results.forEach(result => {
 				assert.equal(result.orderFormId, undefined);
@@ -544,7 +525,7 @@ describe('MySQL', function() {
 				nomap: 5
 			}];
 
-			const results = mysql.mapFields(data, fieldsMap);
+			const results = mysql._mapFields(data, fieldsMap);
 
 			results.forEach(result => {
 				assert.equal(result[Symbol.for('mock')], 'symbol');
@@ -554,7 +535,105 @@ describe('MySQL', function() {
 		});
 	});
 
-	describe('GetConnection', () => {
+	describe('shouldDestroyConnectionPool', function() {
+
+		it('should return true', function() {
+
+			const now = Date.now() / 1000 | 0;
+
+			const dates = [
+				now - MySQL.maxIddleTimeout - 50 // 50 seconds after iddle timeout limit
+			];
+
+			dates.forEach(lastActivity => {
+				assert(mysql._shouldDestroyConnectionPool(lastActivity));
+			});
+
+			assert(mysql._shouldDestroyConnectionPool());
+		});
+
+		it('should return false', function() {
+
+			const now = Date.now() / 1000 | 0;
+
+			const dates = [
+				now - MySQL.maxIddleTimeout + 50 // 50 seconds before iddle timeout limit
+			];
+
+			dates.forEach(lastActivity => {
+				assert(!mysql._shouldDestroyConnectionPool(lastActivity));
+			});
+
+		});
+
+	});
+
+	describe('End Connection', function() {
+		it('should end the connection', function() {
+			//mysql.end();
+			//mysql.closeIddleConnections();
+		})
+	});
+
+	describe('Prepare Fields', function() {
+
+		const expectedPrepareFieldsEmpty = {
+			where: [],
+			placeholders: {},
+			columns: ['*'],
+			joins: ''
+		};
+
+		const expectedPrepareFields = {
+			where: ['foo = :foo'],
+			placeholders: { foo: 'bar' },
+			columns: ['*'],
+			joins: ''
+		};
+
+		it.only('should return empty fields with no model or fields', async() => {
+
+			const preparedFields = await mysql._prepareFields();
+			assert.deepEqual(preparedFields, expectedPrepareFieldsEmpty);
+
+		});
+
+		it.only('should return empty fields with no fields', async() => {
+
+			const preparedFields = await mysql._prepareFields(dummyModel);
+			assert.deepEqual(preparedFields, expectedPrepareFieldsEmpty);
+
+		});
+
+		it.only('should return the correct where and placeholders fields', async() => {
+
+			const stubCall = sinon.stub(MySQL.prototype, '_call')
+				.returns([[{ Field: 'foo' }]]);
+
+			const preparedFields = await mysql._prepareFields(dummyModel, { foo: 'bar' });
+
+			assert.deepEqual(preparedFields, expectedPrepareFields);
+
+			stubCall.restore();
+
+		});
+
+		it.only('should return empty fields with no fields', async() => {
+
+			const stubCall = sinon.stub(MySQL.prototype, '_call')
+				.returns([[{ Field: 'foo' }]]);
+
+			const preparedFields = await mysql._prepareFields(dummyModel, {foo: 'bar_t'});
+			
+			//console.log(preparedFields);
+			//assert.deepEqual(preparedFields, expectedPrepareFields);
+
+			stubCall.restore();
+
+		});
+	});
+
+	/* describe('GetConnection', () => {
 
 		const fakeConnection = {
 			config: {}
@@ -584,5 +663,5 @@ describe('MySQL', function() {
 			stubPool.restore();
 		});
 
-	});
+	}); */
 });
