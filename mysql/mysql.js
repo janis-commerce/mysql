@@ -130,13 +130,13 @@ class MySQL {
 			try {
 
 				const poolConnection = await this.pool.getConnection();
-
 				poolConnection.connection.config.queryFormat = this._queryFormat.bind(this);
 				this.constructor.connectionPool = poolConnection.connection;
 
 				resolve(poolConnection);
 
 			} catch(error) {
+
 				if(error.code === 'ER_CON_COUNT_ERROR')
 					reject(new MySQLError(error.code, MySQLError.codes.TOO_MANY_CONNECTION));
 
@@ -216,31 +216,35 @@ class MySQL {
      * @param {object} placeholders Object with key PARAM_NAME, value PARAM_VALUE, Default empty
 	 * @returns {Promise} Resolve: RowsAffected, Reject: MySQLError
      */
-	_call(query, placeholders = {}) {
-		return new Promise(async(resolve, reject) => {
-			try {
-				const connection = await this.getConnection();
-				const rows = await connection.query(query, placeholders);
+	async _call(query, placeholders = {}) {
 
-				connection.release();
+		try {
 
-				resolve(rows);
+			const connection = await this.getConnection();
+			const rows = await connection.query(query, placeholders);
+			connection.release();
 
-			} catch(error) {
-				// Connections Limit
-				if(error.code === MySQLError.codes.TOO_MANY_CONNECTION)
-					return setTimeout(() => this._call.apply(this, arguments), 500); // Retry
-				// Other Connections Errors
-				if(error.code === MySQLError.codes.CONNECTION_ERROR) {
-					logger.error('Database', error.message);
-					reject(error);
-				}
-				// Query Errors
-				logger.error('Query', error.errno, error.code, error.message);
-				logger.debug(query, placeholders);
-				reject(new MySQLError(error.code, MySQLError.codes.INVALID_QUERY));
+			return rows;
+
+		} catch(error) {
+
+			// Connections Limit
+			if(error.code === MySQLError.codes.TOO_MANY_CONNECTION) {
+				// Retry
+				let retryFunction;
+				setTimeout(retryFunction = () => this._call.apply(this, arguments), 500);
+				return retryFunction();
 			}
-		});
+			// Other Connections Errors
+			if(error.code === MySQLError.codes.CONNECTION_ERROR) {
+				logger.error('Database', error.message);
+				return error;
+			}
+			// Query Errors
+			logger.error('Query', error.errno, error.code, error.message);
+			logger.debug(query, placeholders);
+			return new MySQLError(error.code, MySQLError.codes.INVALID_QUERY);
+		}
 	}
 
 	/**
@@ -264,11 +268,12 @@ class MySQL {
 	}
 
 	/**
-	 * Generates joins
+	 * Generates joins string for queries
 	 * @param {Array.<{table: String, type: String, alias: String, condition: String}>} joins - Array of shape [{ table, type, alias, condition }]
+	 * @param {string} dbname Database Name
 	 * @returns {string}
 	 */
-	_buildJoins(joins) {
+	_buildJoins(joins, dbname) {
 		if(!joins || !Array.isArray(joins))
 			return '';
 
@@ -276,7 +281,7 @@ class MySQL {
 			if(!/^(LEFT|RIGHT|INNER)$/.test(type))
 				return acc;
 
-			return `${acc} ${type} JOIN ${this.dbname}.${table} ${alias} ON ${condition}`;
+			return `${acc} ${type} JOIN ${dbname}.${table} ${alias} ON ${condition}`;
 		}, '');
 	}
 
@@ -343,13 +348,14 @@ class MySQL {
 	 * @param {string} suffix
 	 * @return {object} { where and placeholders }
 	 */
-	async _prepareFields(model, fields = {}, tableAlias = '', suffix = '') {
+	async _prepareFields(model = {}, fields = {}, tableAlias = '', suffix = '') {
 		let where = [];
 		const placeholders = {};
+		const { dbname } = model;
 
 		const columns = fields[this.constructor.columns] || ['*'];
 
-		const joins = this._buildJoins(fields[this.constructor.joins]);
+		const joins = this._buildJoins(fields[this.constructor.joins], dbname);
 
 		if(!Object.keys(fields).length) {
 			return {

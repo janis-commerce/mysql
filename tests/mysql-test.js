@@ -535,6 +535,115 @@ describe('MySQL', function() {
 		});
 	});
 
+	describe('Prepare Fields', function() {
+
+		const expectedPrepareFieldsEmpty = {
+			where: [],
+			placeholders: {},
+			columns: ['*'],
+			joins: ''
+		};
+
+		const expectedPrepareFields = {
+			where: ['foo = :foo'],
+			placeholders: { foo: 'bar' },
+			columns: ['*'],
+			joins: ''
+		};
+
+		it('should return empty fields with no model or fields', async() => {
+
+			const preparedFields = await mysql._prepareFields();
+			assert.deepEqual(preparedFields, expectedPrepareFieldsEmpty);
+
+		});
+
+		it('should return empty fields with no fields', async() => {
+
+			const preparedFields = await mysql._prepareFields(dummyModel);
+			assert.deepEqual(preparedFields, expectedPrepareFieldsEmpty);
+
+		});
+
+		it('should return the correct where and placeholders fields', async() => {
+
+			const stubCall = sinon.stub(MySQL.prototype, '_call')
+				.returns([[{ Field: 'foo' }]]);
+
+			const preparedFields = await mysql._prepareFields(dummyModel, { foo: 'bar' });
+
+			assert.deepEqual(preparedFields, expectedPrepareFields);
+
+			stubCall.restore();
+
+		});
+
+		it('should return LEFT JOIN query if Join Type field not exist', async() => {
+
+			const stubCall = sinon.stub(MySQL.prototype, '_call')
+				.returns([[{ Field: 'foo' }]]);
+
+			const fakeFields = {
+				foo: 'bar',
+				_joins: [
+					{ table: 'table_b', alias: 'tb', condition: 'foo' }
+				]
+			};
+
+			const preparedFields = await mysql._prepareFields(dummyModel, fakeFields);
+			expectedPrepareFields.joins = ' LEFT JOIN dbname.table_b tb ON foo';
+
+			assert.deepEqual(preparedFields, expectedPrepareFields);
+
+			expectedPrepareFields.joins = '';
+			stubCall.restore();
+
+		});
+
+		it('should return empty join string if join type is \'\'', async() => {
+
+			const stubCall = sinon.stub(MySQL.prototype, '_call')
+				.returns([[{ Field: 'foo' }]]);
+
+			const fakeFields = {
+				foo: 'bar',
+				_joins: [
+					{ table: 'table_b', type: '', alias: 'tb', condition: 'foo' }
+				]
+			};
+
+			const preparedFields = await mysql._prepareFields(dummyModel, fakeFields);
+
+			assert.deepEqual(preparedFields, expectedPrepareFields);
+
+			expectedPrepareFields.joins = '';
+			stubCall.restore();
+
+		});
+
+		it('should return RIGHT JOIN query with join type is \'RIGHT\' ', async() => {
+
+			const stubCall = sinon.stub(MySQL.prototype, '_call')
+				.returns([[{ Field: 'foo' }]]);
+
+			const fakeFields = {
+				foo: 'bar',
+				_joins: [
+					{ table: 'table_b', type: 'RIGHT', alias: 'tb', condition: 'foo' }
+				]
+			};
+
+			const preparedFields = await mysql._prepareFields(dummyModel, fakeFields);
+			expectedPrepareFields.joins = ' RIGHT JOIN dbname.table_b tb ON foo';
+
+			assert.deepEqual(preparedFields, expectedPrepareFields);
+
+			expectedPrepareFields.joins = '';
+			stubCall.restore();
+
+		});
+	});
+
 	describe('shouldDestroyConnectionPool', function() {
 
 		it('should return true', function() {
@@ -575,61 +684,75 @@ describe('MySQL', function() {
 		})
 	});
 
-	describe('Prepare Fields', function() {
+	describe('Calls', function() {
 
-		const expectedPrepareFieldsEmpty = {
-			where: [],
-			placeholders: {},
-			columns: ['*'],
-			joins: ''
+		const validQuery = 'SHOW COLUMNS FROM `table`';
+
+		const queryError = new Error('Some Query Error');
+		queryError.errno = 1206;
+		queryError.code = 'Invalid Query';
+
+		const connection = {
+			config: {},
+			query: (q, placeholders = {}) => {
+				return new Promise((resolve, reject) => {
+					if(q !== validQuery)
+						reject(queryError);
+
+						console.log("Entro Query");
+
+					return resolve([[{ Field: 'foo' }]]);
+					
+				});
+			},
+			release: () => true
 		};
 
-		const expectedPrepareFields = {
-			where: ['foo = :foo'],
-			placeholders: { foo: 'bar' },
-			columns: ['*'],
-			joins: ''
-		};
+		// const poolStub = sinon.stub(MySQL.prototype, 'pool').get( () => ({ getConnection: () => ({connection}) }));
 
-		it.only('should return empty fields with no model or fields', async() => {
+		it('should thrown MySQLError if query is wrong/invalid ', async() => {
+			const connectionStub = sinon.stub(MySQL.prototype, 'getConnection')
+				.returns(connection);
 
-			const preparedFields = await mysql._prepareFields();
-			assert.deepEqual(preparedFields, expectedPrepareFieldsEmpty);
+			await assert.rejects(mysql._call('SOME INVALID QUERY', {}), { code: MySQLError.codes.INVALID_QUERY });
 
+			connectionStub.restore();
 		});
 
-		it.only('should return empty fields with no fields', async() => {
+		it('should return positives results', async() => {
+			const connectionStub = sinon.stub(MySQL.prototype, 'getConnection')
+				.returns(connection);
 
-			const preparedFields = await mysql._prepareFields(dummyModel);
-			assert.deepEqual(preparedFields, expectedPrepareFieldsEmpty);
+			const callQuery = await mysql._call(validQuery, {});
 
+			assert.deepEqual(callQuery, [[{ Field: 'foo' }]]);
+			connectionStub.restore();
 		});
 
-		it.only('should return the correct where and placeholders fields', async() => {
+		it('should return MySQLError from Database', async() => {
+			const connectionStub = sinon.stub(MySQL.prototype, 'getConnection')
+				.returns()
+				.throws(new MySQLError('Database Error', MySQLError.codes.CONNECTION_ERROR));
 
-			const stubCall = sinon.stub(MySQL.prototype, '_call')
-				.returns([[{ Field: 'foo' }]]);
-
-			const preparedFields = await mysql._prepareFields(dummyModel, { foo: 'bar' });
-
-			assert.deepEqual(preparedFields, expectedPrepareFields);
-
-			stubCall.restore();
-
+			await assert.rejects(mysql._call(validQuery, {}), { code: MySQLError.codes.CONNECTION_ERROR });
+			connectionStub.restore();
 		});
 
-		it.only('should return empty fields with no fields', async() => {
+		it('should reconnect', async() => {
+			const connectionStub = sinon.stub(MySQL.prototype, 'getConnection');
 
-			const stubCall = sinon.stub(MySQL.prototype, '_call')
-				.returns([[{ Field: 'foo' }]]);
+			connectionStub
+				.onCall(0)
+				.rejects(new MySQLError('Too Many Connections', MySQLError.codes.TOO_MANY_CONNECTION));
 
-			const preparedFields = await mysql._prepareFields(dummyModel, {foo: 'bar_t'});
-			
-			//console.log(preparedFields);
-			//assert.deepEqual(preparedFields, expectedPrepareFields);
+			connectionStub
+				.onCall(1)
+				.returns(connection);
 
-			stubCall.restore();
+			const callQuery = await mysql._call(validQuery, {});
 
+			assert.deepEqual(callQuery, [[{ Field: 'foo' }]]);
+			connectionStub.restore();
 		});
 	});
 
