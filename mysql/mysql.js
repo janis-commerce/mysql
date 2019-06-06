@@ -89,6 +89,7 @@ class MySQL {
 		return this._pool;
 	}
 
+	/* istanbul ignore next */
 	get knex() {
 
 		if(!this._knex) {
@@ -107,7 +108,6 @@ class MySQL {
 		return this._knex;
 	}
 
-	/* istanbul ignore next */
 	_queryFormat(query, values) {
 		if(!values)
 			return query;
@@ -135,11 +135,10 @@ class MySQL {
 			return poolConnection;
 
 		} catch(error) {
-
 			if(error.code === 'ER_CON_COUNT_ERROR')
 				throw new MySQLError(error.code, MySQLError.codes.TOO_MANY_CONNECTION);
 
-			throw new MySQLError(error.code, MySQLError.codes.CONNECTION_ERROR);
+			throw new MySQLError(error.code || 'Database Error', MySQLError.codes.CONNECTION_ERROR);
 		}
 
 	}
@@ -222,7 +221,6 @@ class MySQL {
 			const connection = await this.getConnection();
 			const rows = await connection.query(query, placeholders);
 			connection.release();
-
 			return rows;
 
 		} catch(error) {
@@ -249,6 +247,9 @@ class MySQL {
 	 * @param {class} model Model Class
 	 */
 	async _getFields(model) {
+
+		if(!model)
+			throw new MySQLError('Invalid or Empty Model', MySQLError.codes.INVALID_MODEL);
 
 		const table = model.getTable();
 		const { dbname } = model;
@@ -345,7 +346,11 @@ class MySQL {
 	 * @param {string} suffix
 	 * @return {object} { where and placeholders }
 	 */
-	async _prepareFields(model = {}, fields = {}, tableAlias = '', suffix = '') {
+	async _prepareFields(model, fields = {}, tableAlias = '', suffix = '') {
+
+		if(!model)
+			throw new MySQLError('Invalid or Empty Model', MySQLError.codes.INVALID_MODEL);
+
 		let where = [];
 		const placeholders = {};
 		const { dbname } = model;
@@ -396,6 +401,9 @@ class MySQL {
 	*/
 	async insert(model, item, allowUpsert = false) {
 
+		if(!model)
+			throw new MySQLError('Invalid or Empty Model', MySQLError.codes.INVALID_MODEL);
+
 		const table = model.getTable();
 		const { dbname } = model;
 
@@ -411,7 +419,7 @@ class MySQL {
 		item = this._mapFields(item);
 
 		if(!Object.keys(item).some(field => typeof tableFields[field] !== 'undefined'))
-			throw new MySQLError('Insert must have fields', MySQLError.codes.EMPTY_FIELDS)
+			throw new MySQLError('Insert must have fields', MySQLError.codes.EMPTY_FIELDS);
 
 		if(tableFields.date_created)
 			item.date_created = item.date_created || time;
@@ -453,6 +461,9 @@ class MySQL {
 	*	@param {object} item - The item to update
 	*/
 	async update(model, item) {
+
+		if(!model)
+			throw new MySQLError('Invalid or Empty Model', MySQLError.codes.INVALID_MODEL);
 
 		const table = model.getTable();
 		const { dbname } = model;
@@ -526,6 +537,9 @@ class MySQL {
 	 */
 	async get(model, params = {}) {
 
+		if(!model)
+			throw new MySQLError('Invalid or Empty Model', MySQLError.codes.INVALID_MODEL);
+
 		const newParams = { ...params }; // necesario para no alterar params y no afectar a las keys de cache
 
 		if(!newParams.totals) {
@@ -555,6 +569,9 @@ class MySQL {
 	 * @returns {object} return Total of values, actual Page, Page Size and Total Pages
 	 */
 	async getTotals(model) {
+
+		if(!model)
+			throw new MySQLError('Invalid or Empty Model', MySQLError.codes.INVALID_MODEL);
 
 		if(model.lastQueryEmpty)
 			return { total: 0, pages: 0 };
@@ -587,8 +604,11 @@ class MySQL {
 	/* istanbul ignore next */
 	async multiInsert(model, items) {
 
+		if(!model)
+			throw new MySQLError('Invalid or Empty Model', MySQLError.codes.INVALID_MODEL);
+
 		if(!items || !items.length)
-			throw new MySQLError('Items are required', MySQLError.codes.EMPTY_FIELDS)
+			throw new MySQLError('Items are required', MySQLError.codes.EMPTY_FIELDS);
 
 		const table = model.getTable();
 		const { dbname } = model;
@@ -607,7 +627,7 @@ class MySQL {
 
 		const time = Date.now() / 1000 | 0;
 
-		for(let i = 0, len = items.length; i < len; i++) {
+		for(let i = 0; i < items.length; i++) {
 
 			const itemValues = [];
 
@@ -615,6 +635,9 @@ class MySQL {
 
 			if(tableFields.date_created)
 				items[i].date_created = items[i].date_created || time;
+
+			if(tableFields.date_modified)
+				items[i].date_modified = time;
 
 			const keys = Object.keys(items[i]).sort();
 
@@ -637,7 +660,7 @@ class MySQL {
 			}
 
 			if(!itemValues.length)
-				throw new MySQLError('Values cannot be empty', MySQLError.codes.INVALID_STATEMENT)
+				throw new MySQLError('Values cannot be empty', MySQLError.codes.INVALID_STATEMENT);
 
 			values.push(`(${itemValues.join(',')})`);
 
@@ -662,7 +685,10 @@ class MySQL {
 	 */
 	async remove(model, fields) {
 
-		if(!Utils.isObject(fields)|| Utils.isEmptyObject(fields))
+		if(!model)
+			throw new MySQLError('Invalid or Empty Model', MySQLError.codes.INVALID_MODEL);
+
+		if(!Utils.isObject(fields) || Utils.isEmptyObject(fields))
 			throw new MySQLError('Invalid fields', MySQLError.codes.INVALID_DATA);
 
 		const table = model.getTable();
