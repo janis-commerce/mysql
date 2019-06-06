@@ -10,7 +10,8 @@ class MySQLError extends Error {
 			INVALID_DATA: 3,
 			TOO_MANY_CONNECTION: 4,
 			CONNECTION_ERROR: 5,
-			INVALID_QUERY: 6
+			INVALID_QUERY: 6,
+			ALL_POOL_ENDED: 7
 		};
 
 	}

@@ -124,25 +124,24 @@ class MySQL {
 	 * Get the pool connection.
 	 * @returns {Promise} Pool Promise Connection or MySQLError
 	 */
-	getConnection() {
-		return new Promise(async(resolve, reject) => {
+	async getConnection() {
 
-			try {
+		try {
 
-				const poolConnection = await this.pool.getConnection();
-				poolConnection.connection.config.queryFormat = this._queryFormat.bind(this);
-				this.constructor.connectionPool = poolConnection.connection;
+			const poolConnection = await this.pool.getConnection();
+			poolConnection.connection.config.queryFormat = this._queryFormat.bind(this);
+			this.constructor.connectionPool = poolConnection.connection;
 
-				resolve(poolConnection);
+			return poolConnection;
 
-			} catch(error) {
+		} catch(error) {
 
-				if(error.code === 'ER_CON_COUNT_ERROR')
-					reject(new MySQLError(error.code, MySQLError.codes.TOO_MANY_CONNECTION));
+			if(error.code === 'ER_CON_COUNT_ERROR')
+				throw new MySQLError(error.code, MySQLError.codes.TOO_MANY_CONNECTION);
 
-				reject(new MySQLError(error.code, MySQLError.codes.CONNECTION_ERROR));
-			}
-		});
+			throw new MySQLError(error.code, MySQLError.codes.CONNECTION_ERROR);
+		}
+
 	}
 
 	/**
@@ -227,10 +226,8 @@ class MySQL {
 			return rows;
 
 		} catch(error) {
-
 			// Connections Limit
-			if(error.code === MySQLError.codes.TOO_MANY_CONNECTION) {
-				// Retry
+			if(error.code === MySQLError.codes.TOO_MANY_CONNECTION) { // Retry
 				let retryFunction;
 				setTimeout(retryFunction = () => this._call.apply(this, arguments), 500);
 				return retryFunction();
@@ -238,12 +235,12 @@ class MySQL {
 			// Other Connections Errors
 			if(error.code === MySQLError.codes.CONNECTION_ERROR) {
 				logger.error('Database', error.message);
-				return error;
+				throw error;
 			}
 			// Query Errors
 			logger.error('Query', error.errno, error.code, error.message);
 			logger.debug(query, placeholders);
-			return new MySQLError(error.code, MySQLError.codes.INVALID_QUERY);
+			throw new MySQLError(error.code, MySQLError.codes.INVALID_QUERY);
 		}
 	}
 
@@ -413,11 +410,8 @@ class MySQL {
 
 		item = this._mapFields(item);
 
-		if(!Object.keys(item).some(field => typeof tableFields[field] !== 'undefined')) {
-			return Promise.reject(
-				new MySQLError('Insert must have fields', MySQLError.codes.EMPTY_FIELDS)
-			);
-		}
+		if(!Object.keys(item).some(field => typeof tableFields[field] !== 'undefined'))
+			throw new MySQLError('Insert must have fields', MySQLError.codes.EMPTY_FIELDS)
 
 		if(tableFields.date_created)
 			item.date_created = item.date_created || time;
@@ -501,11 +495,8 @@ class MySQL {
 
 		});
 
-		if(!fields.length) {
-			return Promise.reject(
-				new MySQLError('Update must have fields', MySQLError.codes.EMPTY_FIELDS)
-			);
-		}
+		if(!fields.length)
+			throw new MySQLError('Update must have fields', MySQLError.codes.EMPTY_FIELDS)		
 
 		const clause = where.length ? `WHERE ${where.join(' AND ')}` : '';
 
@@ -596,11 +587,8 @@ class MySQL {
 	/* istanbul ignore next */
 	async multiInsert(model, items) {
 
-		if(!items || !items.length) {
-			return Promise.reject(
-				new MySQLError('Items are required', MySQLError.codes.EMPTY_FIELDS)
-			);
-		}
+		if(!items || !items.length)
+			throw new MySQLError('Items are required', MySQLError.codes.EMPTY_FIELDS)
 
 		const table = model.getTable();
 		const { dbname } = model;
@@ -648,11 +636,8 @@ class MySQL {
 					duplicateUpdate.push(`${key} = VALUES(${key})`);
 			}
 
-			if(!itemValues.length) {
-				return Promise.reject(
-					new MySQLError('Values cannot be empty', MySQLError.codes.INVALID_STATEMENT)
-				);
-			}
+			if(!itemValues.length)
+				throw new MySQLError('Values cannot be empty', MySQLError.codes.INVALID_STATEMENT)
 
 			values.push(`(${itemValues.join(',')})`);
 
@@ -677,12 +662,8 @@ class MySQL {
 	 */
 	async remove(model, fields) {
 
-		if(!Utils.isObject(fields)
-			|| Utils.isEmptyObject(fields)) {
-			return Promise.reject(
-				new MySQLError('Invalid fields', MySQLError.codes.INVALID_DATA)
-			);
-		}
+		if(!Utils.isObject(fields)|| Utils.isEmptyObject(fields))
+			throw new MySQLError('Invalid fields', MySQLError.codes.INVALID_DATA);
 
 		const table = model.getTable();
 		const { dbname } = model;
@@ -710,22 +691,17 @@ class MySQL {
 	 */
 	/* istanbul ignore next */
 	end() {
-		return new Promise((resolve, reject) => {
 
-			if(this.closeIddleConnectionsInterval)
-				clearInterval(this.closeIddleConnectionsInterval);
+		if(this.closeIddleConnectionsInterval)
+			clearInterval(this.closeIddleConnectionsInterval);
 
-			if(!this._pool)
-				resolve();
+		if(!this._pool)
+			return;
 
-			this.pool.end(err => {
-
-				// all connections in the pool have ended
-				if(err)
-					return reject(err);
-
-				resolve();
-			});
+		this.pool.end(err => {
+			// all connections in the pool have ended
+			if(err)
+				throw new MySQLError('All Pool Have Ended', MySQLError.codes.ALL_POOL_ENDED);
 		});
 	}
 
