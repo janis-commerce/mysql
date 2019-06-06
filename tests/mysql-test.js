@@ -207,6 +207,16 @@ describe('MySQL', function() {
 
 		describe('should throw', function() {
 
+			it('when attempting to save with no model', async() => {
+				await assert.rejects(mysql.save(), { code: MySQLError.codes.INVALID_MODEL });
+
+			});
+
+			it('when attempting to update with no model', async() => {
+				await assert.rejects(mysql.update(), { code: MySQLError.codes.INVALID_MODEL });
+
+			});
+
 			it('when attempting to save and fields not found in table structure', async function() {
 				await assert.rejects(() => mysql.save(dummyModel, { wrongField: 23 }), MySQLError);
 			});
@@ -273,6 +283,13 @@ describe('MySQL', function() {
 
 			stubTotals.restore();
 		});
+
+		it('Should throws Error when try to get with no model', async() => {
+			await assert.rejects(mysql.get(), { code: MySQLError.codes.INVALID_MODEL });
+
+			await assert.rejects(mysql.getTotals(), { code: MySQLError.codes.INVALID_MODEL });
+
+		});
 	});
 
 	describe('getFields()', function() {
@@ -291,6 +308,12 @@ describe('MySQL', function() {
 			assert.equal(stubCall.args[0][0], `SHOW COLUMNS FROM ${fullTableName}`);
 
 			stubCall.restore();
+		});
+
+		it('should return Error with no model', async() => {
+
+			await assert.rejects(mysql._getFields(), { code: MySQLError.codes.INVALID_MODEL });
+
 		});
 	});
 
@@ -320,6 +343,11 @@ describe('MySQL', function() {
 			stubCall.restore();
 		});
 
+		it('should return Error with no model', async() => {
+
+			await assert.rejects(mysql.remove(), { code: MySQLError.codes.INVALID_MODEL });
+
+		});
 
 		it('should throw when no filters as object given', async function() {
 
@@ -551,10 +579,9 @@ describe('MySQL', function() {
 			joins: ''
 		};
 
-		it('should return empty fields with no model or fields', async() => {
+		it('should return Error with no model', async() => {
 
-			const preparedFields = await mysql._prepareFields();
-			assert.deepEqual(preparedFields, expectedPrepareFieldsEmpty);
+			await assert.rejects(mysql._prepareFields(), { code: MySQLError.codes.INVALID_MODEL });
 
 		});
 
@@ -694,30 +721,16 @@ describe('MySQL', function() {
 
 		const connection = {
 			config: {},
-			query: (q, placeholders = {}) => {
-				return new Promise((resolve, reject) => {
-					if(q !== validQuery)
-						reject(queryError);
+			query: async queryToResolve => {
+				if(queryToResolve !== validQuery)
+					throw queryError;
 
-						console.log("Entro Query");
-
-					return resolve([[{ Field: 'foo' }]]);
-					
-				});
+				return ([[{ Field: 'foo' }]]);
 			},
 			release: () => true
 		};
 
 		// const poolStub = sinon.stub(MySQL.prototype, 'pool').get( () => ({ getConnection: () => ({connection}) }));
-
-		it('should thrown MySQLError if query is wrong/invalid ', async() => {
-			const connectionStub = sinon.stub(MySQL.prototype, 'getConnection')
-				.returns(connection);
-
-			await assert.rejects(mysql._call('SOME INVALID QUERY', {}), { code: MySQLError.codes.INVALID_QUERY });
-
-			connectionStub.restore();
-		});
 
 		it('should return positives results', async() => {
 			const connectionStub = sinon.stub(MySQL.prototype, 'getConnection')
@@ -726,15 +739,6 @@ describe('MySQL', function() {
 			const callQuery = await mysql._call(validQuery, {});
 
 			assert.deepEqual(callQuery, [[{ Field: 'foo' }]]);
-			connectionStub.restore();
-		});
-
-		it('should return MySQLError from Database', async() => {
-			const connectionStub = sinon.stub(MySQL.prototype, 'getConnection')
-				.returns()
-				.throws(new MySQLError('Database Error', MySQLError.codes.CONNECTION_ERROR));
-
-			await assert.rejects(mysql._call(validQuery, {}), { code: MySQLError.codes.CONNECTION_ERROR });
 			connectionStub.restore();
 		});
 
@@ -754,37 +758,85 @@ describe('MySQL', function() {
 			assert.deepEqual(callQuery, [[{ Field: 'foo' }]]);
 			connectionStub.restore();
 		});
+
+		it('should thrown MySQLError if query is wrong/invalid ', async() => {
+			const connectionStub = sinon.stub(MySQL.prototype, 'getConnection')
+				.returns(connection);
+
+			await assert.rejects(mysql._call('SOME INVALID QUERY', {}), { code: MySQLError.codes.INVALID_QUERY });
+
+			connectionStub.restore();
+		});
+
+
+		it('should return MySQLError from Database', async() => {
+			const connectionStub = sinon.stub(MySQL.prototype, 'getConnection')
+				.rejects(new MySQLError('Database Error', MySQLError.codes.CONNECTION_ERROR));
+
+			await assert.rejects(mysql._call(validQuery, {}), { code: MySQLError.codes.CONNECTION_ERROR });
+			connectionStub.restore();
+		});
+
 	});
 
-	/* describe('GetConnection', () => {
+	describe('GetConnection', () => {
 
-		const fakeConnection = {
+		const connection = {
 			config: {}
 		};
 
-		const fakePoolWithError = {
-			getConnection: cb => cb(new Error('some database error'), null)
-		};
-
 		const fakePoolValid = {
-			getConnection: cb => cb(null, fakeConnection)
+			getConnection: () => ({ connection })
 		};
 
 		it('should get Error when connection is not working', async() => {
 
-			const stubPool = sinon.stub(MySQL.prototype, 'pool').get(() => fakePoolWithError);
-			await assert.rejects(mysql.getConnection(), { message: 'some database error' });
+			const stubPool = sinon.stub(MySQL.prototype, 'pool')
+				.get(() => { throw new Error('Database Error'); });
+
+			await assert.rejects(mysql.getConnection(), { code: MySQLError.codes.CONNECTION_ERROR });
+			stubPool.restore();
+		});
+
+		it('should get MySqlError when Pool have too many connection', async() => {
+
+			const SqlErrorTooManyConnection = new Error('Too Many Connection');
+			SqlErrorTooManyConnection.code = 'ER_CON_COUNT_ERROR';
+
+			const stubPool = sinon.stub(MySQL.prototype, 'pool')
+				.get(() => { throw SqlErrorTooManyConnection; });
+
+			await assert.rejects(mysql.getConnection(), { code: MySQLError.codes.TOO_MANY_CONNECTION });
+
 			stubPool.restore();
 		});
 
 		it('should connect and add QueryFormat', async() => {
 			const stubPool = sinon.stub(MySQL.prototype, 'pool').get(() => fakePoolValid);
-			fakeConnection.config.queryFormat = MySQL.queryFormat;
+			connection.config.queryFormat = MySQL.queryFormat;
 
 			await assert(typeof mysql.getConnection(), 'object');
-			await assert.deepEqual(await mysql.getConnection(), fakeConnection);
+			assert.deepEqual(await mysql.getConnection(), { connection });
+
 			stubPool.restore();
 		});
 
-	}); */
+	});
+
+	describe('Query Format', function() {
+
+		const queryString = value => `SHOW COLUMNS FROM ${value}`;
+
+		it('should return the same Query String if value dont exist', () => {
+			assert.equal(mysql._queryFormat(queryString('`table`')), queryString('`table`'));
+		});
+
+		it('should return the Query String with correct value change', () => {
+			assert.equal(mysql._queryFormat(queryString(':foo'), { foo: 'bar' }), queryString('\'bar\''));
+		});
+
+		it('should return the Query String with correct value format', () => {
+			assert.equal(mysql._queryFormat(queryString(':foo'), 'foo'), queryString(':foo'));
+		});
+	});
 });

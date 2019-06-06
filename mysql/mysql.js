@@ -81,6 +81,7 @@ class MySQL {
 	 * Returns a MySQL pool, if it didn't exist create one.
 	 * @returns {object} MySQL pool instance
 	 */
+	/* istanbul ignore next */
 	get pool() {
 
 		if(!this._pool)
