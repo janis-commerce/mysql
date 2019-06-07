@@ -259,6 +259,35 @@ describe('MySQL', function() {
 			stub.restore();
 		});
 
+		it('Should return results and totals only with filters', async function() {
+
+			const originalParams = { someFilter: 'foo' };
+			const params = { ...originalParams };
+
+			const stubResults = stubExecute([{ result: 1 }, { result: 2 }]);
+
+			const result = await mysql.get(dummyModel, params);
+
+			assert.deepEqual(result, [{ result: 1 }, { result: 2 }]);
+
+			testParams(params, originalParams);
+
+			stubResults.restore();
+
+			const stubTotals = stubExecute([{ count: 650 }]);
+
+			const resultTotals = await mysql.getTotals(dummyModel);
+
+			assert.deepEqual(resultTotals, {
+				total: 650,
+				page: 1,
+				pageSize: 500,
+				pages: 2
+			});
+
+			stubTotals.restore();
+		});
+
 		it('Should return results and totals', async function() {
 
 			const originalParams = { someFilter: 'foo', page: 4, limit: 10 };

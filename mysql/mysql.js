@@ -110,9 +110,6 @@ class MySQL {
 
 	_queryFormat(query, values) {
 
-		console.log('**************')
-		console.log(escape);
-		
 		if(!values)
 			return query;
 
