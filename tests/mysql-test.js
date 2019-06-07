@@ -77,6 +77,10 @@ describe('MySQL', function() {
 			assert.equal('_columns', MySQL.columns);
 		});
 
+		it('should return "_columns"', () => {
+			assert(mysql.pool);
+		});
+
 	});
 
 	describe('connecionPool - setter and getter', function() {

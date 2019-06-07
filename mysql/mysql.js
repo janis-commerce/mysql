@@ -81,7 +81,6 @@ class MySQL {
 	 * Returns a MySQL pool, if it didn't exist create one.
 	 * @returns {object} MySQL pool instance
 	 */
-	/* istanbul ignore next */
 	get pool() {
 
 		if(!this._pool)
@@ -110,6 +109,10 @@ class MySQL {
 	}
 
 	_queryFormat(query, values) {
+
+		console.log('**************')
+		console.log(escape);
+		
 		if(!values)
 			return query;
 
@@ -701,7 +704,7 @@ class MySQL {
 			joins
 		} = await this._prepareFields(model, fields);
 
-		const whereClause = where.length ? `WHERE ${where.join(' AND ')}` : '';
+		const whereClause = `WHERE ${where.join(' AND ')}` // where.length ? `WHERE ${where.join(' AND ')}` : '';
 
 		const joinsClause = joins || '';
 
