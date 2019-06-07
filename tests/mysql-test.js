@@ -207,6 +207,24 @@ describe('MySQL', function() {
 				assert.deepEqual(stubCall.args[0][1], { set_foo: 'bar', foo: 'barr' });
 			});
 
+			it('if getFields not return id, date_created and date_modified', async() => {
+
+				const fields2 = { some: 'some' };
+				stubFields.returns(fields2);
+
+				const result = await mysql.insert(dummyModel, {
+					some: 'bar'
+				}, false);
+
+				const expectedQuery = sanitizeQuery(`INSERT INTO ${fullTableName}
+					(some) VALUES (:some)`);
+
+				assert.equal(sanitizeQuery(stubCall.args[0][0]), expectedQuery);
+
+				assert.equal(result, insertId);
+
+			});
+
 		});
 
 		describe('should throw', function() {
@@ -239,6 +257,22 @@ describe('MySQL', function() {
 		const testParams = (params, expectedParams) => {
 			assert.deepEqual(params, expectedParams, 'shouldn\'t modify ofiginal params');
 		};
+
+		it('Get Totals in empty Table, should return default values', async() => {
+
+			const stub2 = sinon.stub(MySQL.prototype, 'get').callsFake(() => [{ count: 0 }]);
+
+			const totalExpected = {
+				page: 1,
+				pageSize: 500,
+				pages: 1,
+				total: 0
+			};
+
+			assert.deepEqual(await mysql.getTotals(dummyModel), totalExpected);
+
+			stub2.restore();
+		});
 
 		it('Should return empty results and totals with zero values', async function() {
 
@@ -431,6 +465,20 @@ describe('MySQL', function() {
 				const rows = MySQL._buildFieldQuery(field, value);
 
 				assert.deepEqual(rows.where, [`${field} = :${field}`]);
+				assert.deepEqual(rows.placeholders, { [field]: value });
+			}
+
+		});
+
+		it('Should build field query correctly for a single value field with alias', function() {
+
+			const values = [['foo', 'test'], ['bar', 1]];
+			const alias = 'test';
+
+			for(const [field, value] of values) {
+				const rows = MySQL._buildFieldQuery(field, value, alias);
+
+				assert.deepEqual(rows.where, [`${alias}.${field} = :${field}`]);
 				assert.deepEqual(rows.placeholders, { [field]: value });
 			}
 

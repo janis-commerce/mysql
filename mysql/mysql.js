@@ -295,14 +295,13 @@ class MySQL {
 
 		const where = [];
 		const placeholders = {};
-
 		const fieldKey = `${alias ? alias + '.' : ''}${field}`;
 
-		if(value instanceof Array) {
+		if(Array.isArray(value)) {
+
 			const queryIn = [];
 
 			const hasNull = value.some(item => item === null);
-
 			if(hasNull)
 				value = value.filter(item => item !== null);
 
@@ -315,12 +314,9 @@ class MySQL {
 
 			}
 
-			if(queryIn.length) {
-
-				if(hasNull)
-					where.push(`(${fieldKey} IS NULL OR ${fieldKey} IN (${queryIn.join(',')}))`);
-				else where.push(`${fieldKey} IN (${queryIn.join(',')})`);
-			}
+			if(hasNull)
+				where.push(`(${fieldKey} IS NULL OR ${fieldKey} IN (${queryIn.join(',')}))`);
+			else where.push(`${fieldKey} IN (${queryIn.join(',')})`);
 
 
 		} else {
