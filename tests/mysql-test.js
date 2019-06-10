@@ -2,21 +2,169 @@
 
 const assert = require('assert');
 const sinon = require('sinon');
-
+const mock = require('mock-require');
 const QueryBuilder = require('@janiscommerce/query-builder');
+
+const mysql2Mock = require('./mysql-mock');
+
+mock('mysql2/promise', mysql2Mock);
 
 const { MySQLError } = require('./../mysql');
 const MySQL = require('./../index');
 
 /* eslint-disable prefer-arrow-callback */
 
+const sandbox = sinon.createSandbox();
+
 const sanitizeQuery = string => string.replace(/[\n\t]/g, ' ')
 	.replace(/\s+/g, ' ')
 	.trim();
 
-describe('MySQL', function() {
+describe('MySQL module', function() {
 
-	let stubKnex;
+	let dummyModel;
+	let mysql;
+
+	class Model {
+		getTable() {
+			return 'table';
+		}
+	}
+
+
+	before(() => {
+
+		// stubKnex = sinon.stub(MySQL.prototype, 'knex').get(() => knexGetter);
+
+		/* stubBuild = sinon.stub(QueryBuilder.prototype, 'build').callsFake(() => {
+			return true;
+		}); */
+
+		mysql = new MySQL({});
+		dummyModel = new Model();
+		dummyModel.dbname = 'dbname';
+
+		// fullTableName = `${dummyModel.dbname}.${dummyModel.getTable()}`;
+	});
+
+	after(() => {
+		sandbox.restore();
+		mock.stopAll();
+	});
+
+	describe('Connections Test', function() {
+
+		describe('ConnecionPool - setter and getter', function() {
+
+			it('Should return empty object when no pool connection was set', () => {
+
+				assert(typeof MySQL.connectionPool, 'Object');
+				assert.deepEqual({}, MySQL.connectionPool, 'it should by {}');
+			});
+
+			it('Should set a connection', function() {
+
+				const threadId = 123;
+				MySQL.connectionPool = { threadId };
+
+				assert(typeof MySQL.connectionPool, 'Object');
+				assert(typeof MySQL.connectionPool[threadId], 'Object');
+				assert(typeof MySQL.connectionPool[threadId].lastActivity, 'number');
+
+				const now = Date.now() / 1000 | 0;
+
+				assert(MySQL.connectionPool[threadId].lastActivity >= now);
+				assert.equal(MySQL.connectionPool[threadId].id, threadId);
+
+			});
+
+		});
+
+		describe('Pool Getter', function() {
+
+			it('\'_pool\' field must be \'undefined\' before get \'pool\'', function() {
+
+				assert.equal(typeof mysql._pool, 'undefined');
+				assert.equal(typeof mysql.pool, 'object');
+
+			});
+
+			it('After get \'pool\' must be Pool must be setted and be equal', function() {
+
+				assert.equal(typeof mysql.pool, 'object');
+				assert.deepEqual(mysql.pool, mysql._pool);
+
+			});
+
+		});
+
+		describe('Getting Connection', function() {
+
+			it('should connect and add QueryFormat', async function() {
+
+				const poolConnection = await mysql.getConnection();
+
+				assert(typeof poolConnection, 'object');
+				assert(poolConnection.connection.config.queryFormat);
+			});
+
+			it('should get Error when connection is not working', async function() {
+
+				sandbox.stub(MySQL.prototype, 'pool')
+					.get(() => { throw new Error('Database Error'); });
+
+				await assert.rejects(mysql.getConnection(), { code: MySQLError.codes.CONNECTION_ERROR });
+			});
+
+			it('should get MySqlError when Pool have too many connection', async function() {
+
+				const SqlErrorTooManyConnection = new Error('Too Many Connection');
+				SqlErrorTooManyConnection.code = 'ER_CON_COUNT_ERROR';
+
+				sandbox.stub(MySQL.prototype, 'pool')
+					.get(() => { throw SqlErrorTooManyConnection; });
+
+				await assert.rejects(mysql.getConnection(), { code: MySQLError.codes.TOO_MANY_CONNECTION });
+
+			});
+
+		});
+
+	});
+
+	describe('Field Preparations', function () {
+		describe('getFields()', function() {
+
+			it('Should return formatted fields', async function() {
+	
+				const stubCall = sinon.stub(MySQL.prototype, '_call')
+					.returns([[{ Field: 'foo', extra: 1 }]]);
+	
+				const fields = await mysql._getFields(dummyModel);
+	
+				assert.deepEqual(fields, {
+					foo: { Field: 'foo', extra: 1 }
+				});
+	
+				assert.equal(stubCall.args[0][0], `SHOW COLUMNS FROM ${fullTableName}`);
+	
+				stubCall.restore();
+			});
+	
+			it('should return Error with no model', async() => {
+	
+				await assert.rejects(mysql._getFields(), { code: MySQLError.codes.INVALID_MODEL });
+	
+			});
+		});
+	})
+
+});
+
+
+/* Old Tests
+
+let stubKnex;
 	let stubBuild;
 
 	let dummyModel;
@@ -52,7 +200,7 @@ describe('MySQL', function() {
 		stubBuild.restore();
 	});
 
-	describe('static getters', () => {
+describe('static getters', () => {
 		it('should return default limit', () => {
 			const DEFAULT_LIMIT = 500;
 
@@ -77,42 +225,9 @@ describe('MySQL', function() {
 			assert.equal('_columns', MySQL.columns);
 		});
 
-		it('should return "_columns"', () => {
-			assert(mysql.pool);
-		});
-
 	});
 
-	describe('connecionPool - setter and getter', function() {
-
-		it('should return empty object when no pool connection was set', () => {
-
-			assert(typeof MySQL.connectionPool, 'Object');
-
-			assert.deepEqual({}, MySQL.connectionPool, 'it should by {}');
-		});
-
-		it('should set a connection', function() {
-
-			const threadId = 123;
-
-			MySQL.connectionPool = { threadId };
-
-			assert(typeof MySQL.connectionPool, 'Object');
-
-			assert(typeof MySQL.connectionPool[threadId], 'Object');
-
-			assert(typeof MySQL.connectionPool[threadId].lastActivity, 'number');
-
-			const now = Date.now() / 1000 | 0;
-
-			assert(MySQL.connectionPool[threadId].lastActivity >= now);
-
-			assert.equal(MySQL.connectionPool[threadId].id, threadId);
-
-		});
-
-	});
+	
 
 	describe('save methods', function() {
 
@@ -860,50 +975,6 @@ describe('MySQL', function() {
 
 	});
 
-	describe('GetConnection', () => {
-
-		const connection = {
-			config: {}
-		};
-
-		const fakePoolValid = {
-			getConnection: () => ({ connection })
-		};
-
-		it('should get Error when connection is not working', async() => {
-
-			const stubPool = sinon.stub(MySQL.prototype, 'pool')
-				.get(() => { throw new Error('Database Error'); });
-
-			await assert.rejects(mysql.getConnection(), { code: MySQLError.codes.CONNECTION_ERROR });
-			stubPool.restore();
-		});
-
-		it('should get MySqlError when Pool have too many connection', async() => {
-
-			const SqlErrorTooManyConnection = new Error('Too Many Connection');
-			SqlErrorTooManyConnection.code = 'ER_CON_COUNT_ERROR';
-
-			const stubPool = sinon.stub(MySQL.prototype, 'pool')
-				.get(() => { throw SqlErrorTooManyConnection; });
-
-			await assert.rejects(mysql.getConnection(), { code: MySQLError.codes.TOO_MANY_CONNECTION });
-
-			stubPool.restore();
-		});
-
-		it('should connect and add QueryFormat', async() => {
-			const stubPool = sinon.stub(MySQL.prototype, 'pool').get(() => fakePoolValid);
-			connection.config.queryFormat = MySQL.queryFormat;
-
-			await assert(typeof mysql.getConnection(), 'object');
-			assert.deepEqual(await mysql.getConnection(), { connection });
-
-			stubPool.restore();
-		});
-
-	});
-
 	describe('Query Format', function() {
 
 		const queryString = value => `SHOW COLUMNS FROM ${value}`;
@@ -920,4 +991,5 @@ describe('MySQL', function() {
 			assert.equal(mysql._queryFormat(queryString(':foo'), 'foo'), queryString(':foo'));
 		});
 	});
-});
+
+*/
