@@ -171,7 +171,6 @@ class MySQL {
 
 			parsed = field.replace(/[A-Z]/g, (match, index) => (index !== 0 ? '_' : '') + match.toLowerCase());
 		}
-
 		return parsed;
 	}
 
@@ -218,7 +217,6 @@ class MySQL {
 	async _call(query, placeholders = {}) {
 
 		try {
-
 			const connection = await this.getConnection();
 			const rows = await connection.query(query, placeholders);
 			connection.release();
@@ -227,10 +225,11 @@ class MySQL {
 		} catch(error) {
 			// Connections Limit
 			if(error.code === MySQLError.codes.TOO_MANY_CONNECTION) { // Retry
-				let retryFunction;
-				setTimeout(retryFunction = () => this._call.apply(this, arguments), 500);
+				const retryFunction = () => this._call.apply(this, arguments);
+				setTimeout(retryFunction, 1000);
 				return retryFunction();
 			}
+
 			// Other Connections Errors
 			if(error.code === MySQLError.codes.CONNECTION_ERROR) {
 				logger.error('Database', error.message);

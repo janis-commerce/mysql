@@ -5,7 +5,7 @@ const sinon = require('sinon');
 const mock = require('mock-require');
 const QueryBuilder = require('@janiscommerce/query-builder');
 
-const mysql2Mock = require('./mysql-mock');
+const { MySQL: mysql2Mock, validQueryManager } = require('../mocks/mysql-mock');
 
 mock('mysql2/promise', mysql2Mock);
 
@@ -22,34 +22,28 @@ const sanitizeQuery = string => string.replace(/[\n\t]/g, ' ')
 
 describe('MySQL module', function() {
 
-	let dummyModel;
-	let mysql;
-
 	class Model {
 		getTable() {
 			return 'table';
 		}
 	}
 
+	const mysql = new MySQL({});
 
-	before(() => {
+	const dummyModel = new Model();
+	dummyModel.dbname = 'dbname';
 
-		// stubKnex = sinon.stub(MySQL.prototype, 'knex').get(() => knexGetter);
-
-		/* stubBuild = sinon.stub(QueryBuilder.prototype, 'build').callsFake(() => {
-			return true;
-		}); */
-
-		mysql = new MySQL({});
-		dummyModel = new Model();
-		dummyModel.dbname = 'dbname';
-
-		// fullTableName = `${dummyModel.dbname}.${dummyModel.getTable()}`;
-	});
+	const fullTableName = `${dummyModel.dbname}.${dummyModel.getTable()}`;
 
 	after(() => {
 		sandbox.restore();
 		mock.stopAll();
+	});
+
+
+	afterEach(() => {
+		sandbox.restore();
+		validQueryManager.cleanQueries();
 	});
 
 	describe('Connections Test', function() {
@@ -101,7 +95,6 @@ describe('MySQL module', function() {
 		describe('Getting Connection', function() {
 
 			it('should connect and add QueryFormat', async function() {
-
 				const poolConnection = await mysql.getConnection();
 
 				assert(typeof poolConnection, 'object');
@@ -130,106 +123,436 @@ describe('MySQL module', function() {
 
 		});
 
+		describe('Making Calls', function() {
+
+			const validQuery = `SHOW COLUMNS FROM ${fullTableName}`;
+
+			const queryError = new Error('Some Query Error');
+			queryError.errno = 1206;
+			queryError.code = 'Invalid Query';
+
+			const connection = {
+				config: {},
+				query: async queryToResolve => {
+					if(queryToResolve !== validQuery)
+						throw queryError;
+
+					return ([[{ Field: 'foo' }]]);
+				},
+				release: () => true
+			};
+
+			it('should return positives results', async() => {
+				validQueryManager.addValidQuery(validQuery, [[{ Field: 'foo' }]]);
+
+				const callQuery = await mysql._call(validQuery, {});
+
+				assert.deepEqual(callQuery, [[{ Field: 'foo' }]]);
+			});
+
+			it('should thrown MySQLError if query is wrong/invalid ', async() => {
+
+				await assert.rejects(mysql._call('SOME INVALID QUERY', {}), { code: MySQLError.codes.INVALID_QUERY });
+			});
+
+			it('should return MySQLError from Database', async() => {
+				sandbox.stub(MySQL.prototype, 'getConnection')
+					.rejects(new MySQLError('Database Error', MySQLError.codes.CONNECTION_ERROR));
+
+				await assert.rejects(mysql._call(validQuery, {}), { code: MySQLError.codes.CONNECTION_ERROR });
+			});
+
+			it('should reconnect', async() => {
+
+				const connectionStub = sandbox.stub(MySQL.prototype, 'getConnection');
+
+				connectionStub
+					.onCall(0)
+					.rejects(new MySQLError('Too Many Connections', MySQLError.codes.TOO_MANY_CONNECTION));
+
+				connectionStub
+					.onCall(1)
+					.returns(connection);
+
+				const callQuery = await mysql._call(validQuery, {});
+
+				assert.deepEqual(callQuery, [[{ Field: 'foo' }]]);
+			});
+
+		});
+
+		describe('Should Destroy Connection Pool', function() {
+
+			it('should return true', function() {
+
+				const now = Date.now() / 1000 | 0;
+
+				const dates = [
+					now - MySQL.maxIddleTimeout - 50 // 50 seconds after iddle timeout limit
+				];
+
+				dates.forEach(lastActivity => {
+					assert(mysql._shouldDestroyConnectionPool(lastActivity));
+				});
+
+				assert(mysql._shouldDestroyConnectionPool());
+			});
+
+			it('should return false', function() {
+
+				const now = Date.now() / 1000 | 0;
+
+				const dates = [
+					now - MySQL.maxIddleTimeout + 50 // 50 seconds before iddle timeout limit
+				];
+
+				dates.forEach(lastActivity => {
+					assert(!mysql._shouldDestroyConnectionPool(lastActivity));
+				});
+
+			});
+
+		});
+
 	});
 
-	describe('Field Preparations', function () {
-		describe('getFields()', function() {
+	describe('Field Preparations', function() {
+
+		describe('Query Format', function() {
+
+			const queryString = value => `SHOW COLUMNS FROM ${value}`;
+
+			it('should return the same Query String if value dont exist', function() {
+				assert.equal(mysql._queryFormat(queryString('`table`')), queryString('`table`'));
+			});
+
+			it('should return the Query String with correct value change', function() {
+				assert.equal(mysql._queryFormat(queryString(':foo'), { foo: 'bar' }), queryString('\'bar\''));
+			});
+
+			it('should return the Query String with correct value format', function() {
+				assert.equal(mysql._queryFormat(queryString(':foo'), 'foo'), queryString(':foo'));
+			});
+		});
+
+		describe('Field Mapping', function() {
+
+			const fieldsMap = {
+				order_form_id: ['orderFormId'],
+				check_boolean: ['checkBoolean'],
+				check_falsy: ['checkFalsy'],
+				check_multiple: ['checkMulti', 'checkMultiple'],
+				check_string: 'checkString',
+				some_field: ['other_field']
+			};
+
+			it('Should not map anything and get empty object', function() {
+				assert.deepEqual(mysql._mapItem(), {});
+			});
+
+			it('Should map correctly an object', function() {
+
+				const data = {
+					orderFormId: 'yes',
+					checkBoolean: true,
+					checkFalsy: false,
+					status: false,
+					checkMultiple: true,
+					CapitalField: false,
+					no: 5,
+					noMap: 6,
+					checkString: 'string'
+				};
+
+
+				const result = mysql._mapFields(data, fieldsMap);
+
+				assert.equal(result.orderFormId, undefined);
+				assert.equal(result.checkBoolean, undefined);
+				assert.equal(result.checkFalsy, undefined);
+				assert.equal(result.checkMultiple, undefined);
+				assert.equal(result.checkString, undefined);
+				assert.equal(result.CapitalField, undefined);
+
+				assert.equal(result.order_form_id, 'yes');
+				assert.equal(result.check_boolean, true);
+				assert.equal(result.check_falsy, false);
+				assert.equal(result.check_multiple, true);
+				assert.equal(result.status, false);
+				assert.equal(result.capital_field, false);
+				assert.equal(result.check_string, 'string');
+				assert.equal(result.no_map, 6);
+				assert.equal(result.no, 5);
+
+			});
+
+			it('Should map correctly an array of objects ', function() {
+
+				const data = [{
+					orderFormId: 'yes',
+					checkBoolean: true,
+					checkFalsy: false,
+					status: false,
+					checkMultiple: true,
+					nomap: 5,
+					checkString: 'string'
+				}, {
+					orderFormId: 'yes',
+					checkBoolean: true,
+					checkFalsy: false,
+					status: false,
+					checkMultiple: true,
+					nomap: 5,
+					checkString: 'string'
+				}];
+
+				const results = mysql._mapFields(data, fieldsMap);
+
+				results.forEach(result => {
+					assert.equal(result.orderFormId, undefined);
+					assert.equal(result.checkBoolean, undefined);
+					assert.equal(result.checkFalsy, undefined);
+					assert.equal(result.checkMultiple, undefined);
+					assert.equal(result.checkString, undefined);
+
+					assert.equal(result.order_form_id, 'yes');
+					assert.equal(result.check_boolean, true);
+					assert.equal(result.check_falsy, false);
+					assert.equal(result.check_multiple, true);
+					assert.equal(result.status, false);
+					assert.equal(result.check_string, 'string');
+					assert.equal(result.nomap, 5);
+				});
+
+			});
+
+			it('Should leave symbols properties unchanged', function() {
+
+				const data = [{
+					[Symbol.for('mock')]: 'symbol',
+					nomap: 5
+				}, {
+					[Symbol.for('mock')]: 'symbol',
+					nomap: 5
+				}];
+
+				const results = mysql._mapFields(data, fieldsMap);
+
+				results.forEach(result => {
+					assert.equal(result[Symbol.for('mock')], 'symbol');
+					assert.equal(result.nomap, 5);
+				});
+
+			});
+		});
+
+		describe('Prepare Fields', function() {
+
+			const expectedPrepareFieldsEmpty = {
+				where: [],
+				placeholders: {},
+				columns: ['*'],
+				joins: ''
+			};
+
+			const expectedPrepareFields = {
+				where: ['foo = :foo'],
+				placeholders: { foo: 'bar' },
+				columns: ['*'],
+				joins: ''
+			};
+
+			beforeEach(() => {
+				validQueryManager.addValidQuery(`SHOW COLUMNS FROM ${fullTableName}`, [[{ Field: 'foo' }]]);
+			});
+
+			after(() => {
+				validQueryManager.cleanQueries();
+			});
+
+			it('should return Error with no model', async function() {
+
+				await assert.rejects(mysql._prepareFields(), { code: MySQLError.codes.INVALID_MODEL });
+
+			});
+
+			it('should return empty fields with no fields', async function() {
+
+				const preparedFields = await mysql._prepareFields(dummyModel);
+				assert.deepEqual(preparedFields, expectedPrepareFieldsEmpty);
+
+			});
+
+			it('should return the correct where and placeholders fields', async function() {
+
+				const preparedFields = await mysql._prepareFields(dummyModel, { foo: 'bar' });
+
+				assert.deepEqual(preparedFields, expectedPrepareFields);
+
+			});
+
+			it('should return LEFT JOIN query if Join Type field not exist', async function() {
+
+				const fakeFields = {
+					foo: 'bar',
+					_joins: [
+						{ table: 'table_b', alias: 'tb', condition: 'foo' }
+					]
+				};
+
+				const preparedFields = await mysql._prepareFields(dummyModel, fakeFields);
+				expectedPrepareFields.joins = ' LEFT JOIN dbname.table_b tb ON foo';
+
+				assert.deepEqual(preparedFields, expectedPrepareFields);
+
+				expectedPrepareFields.joins = '';
+
+			});
+
+			it('should return empty join string if join type is \'\'', async function() {
+
+				const fakeFields = {
+					foo: 'bar',
+					_joins: [
+						{ table: 'table_b', type: '', alias: 'tb', condition: 'foo' }
+					]
+				};
+
+				const preparedFields = await mysql._prepareFields(dummyModel, fakeFields);
+
+				assert.deepEqual(preparedFields, expectedPrepareFields);
+
+				expectedPrepareFields.joins = '';
+
+			});
+
+			it('should return RIGHT JOIN query with join type is \'RIGHT\' ', async function() {
+
+				const fakeFields = {
+					foo: 'bar',
+					_joins: [
+						{ table: 'table_b', type: 'RIGHT', alias: 'tb', condition: 'foo' }
+					]
+				};
+
+				const preparedFields = await mysql._prepareFields(dummyModel, fakeFields);
+				expectedPrepareFields.joins = ' RIGHT JOIN dbname.table_b tb ON foo';
+
+				assert.deepEqual(preparedFields, expectedPrepareFields);
+
+				expectedPrepareFields.joins = '';
+
+			});
+		});
+
+		describe('Get Fields', function() {
 
 			it('Should return formatted fields', async function() {
-	
-				const stubCall = sinon.stub(MySQL.prototype, '_call')
-					.returns([[{ Field: 'foo', extra: 1 }]]);
-	
+
+				validQueryManager.addValidQuery(`SHOW COLUMNS FROM ${fullTableName}`, [[{ Field: 'foo', extra: 1 }]]);
+
 				const fields = await mysql._getFields(dummyModel);
-	
+
 				assert.deepEqual(fields, {
 					foo: { Field: 'foo', extra: 1 }
 				});
-	
-				assert.equal(stubCall.args[0][0], `SHOW COLUMNS FROM ${fullTableName}`);
-	
-				stubCall.restore();
+
+				validQueryManager.cleanQueries();
+
 			});
-	
-			it('should return Error with no model', async() => {
-	
+
+			it('should return Error with no model', async function() {
+
 				await assert.rejects(mysql._getFields(), { code: MySQLError.codes.INVALID_MODEL });
-	
+
+			});
+
+		});
+
+		describe('Build field query', function() {
+
+			it('Should build field query correctly for a single value field', function() {
+
+				const values = [['foo', 'test'], ['bar', 1]];
+
+				for(const [field, value] of values) {
+					const rows = MySQL._buildFieldQuery(field, value);
+
+					assert.deepEqual(rows.where, [`${field} = :${field}`]);
+					assert.deepEqual(rows.placeholders, { [field]: value });
+				}
+
+			});
+
+			it('Should build field query correctly for a single value field with alias', function() {
+
+				const values = [['foo', 'test'], ['bar', 1]];
+				const alias = 'test';
+
+				for(const [field, value] of values) {
+					const rows = MySQL._buildFieldQuery(field, value, alias);
+
+					assert.deepEqual(rows.where, [`${alias}.${field} = :${field}`]);
+					assert.deepEqual(rows.placeholders, { [field]: value });
+				}
+
+			});
+
+			it('Should build field query correctly for a single value field with added suffix to placeholder', function() {
+
+				const values = [['foo', 'test'], ['bar', 1]];
+
+				let index = 0;
+				for(const [field, value] of values) {
+					const rows = MySQL._buildFieldQuery(field, value, '', '_' + index);
+
+					const ph = `${field}_${index}`;
+					assert.deepEqual(rows.where, [`${field} = :${ph}`]);
+					assert.deepEqual(rows.placeholders, { [ph]: value });
+
+					index++;
+				}
+
+			});
+
+			it('Should build field query correctly for field with null value', function() {
+
+				const values = [['foo', null], ['bar', null]];
+
+				let index = 0;
+				for(const [field, value] of values) {
+					const rows = MySQL._buildFieldQuery(field, value, '', '_' + index);
+
+					const ph = `${field}_${index}`;
+					assert.deepEqual(rows.where, [`${field} IS NULL`]);
+					assert.deepEqual(rows.placeholders, { [ph]: value });
+
+					index++;
+				}
+
+			});
+
+			it('Should build field query correctly for field with multi values', function() {
+
+				const res = MySQL._buildFieldQuery('foo', [1, '3']);
+
+				assert.deepEqual(res.where, ['foo IN (:foo_0,:foo_1)']);
+				assert.deepEqual(res.placeholders, { foo_0: 1, foo_1: '3' });
+
+			});
+
+			it('Should build field query correctly for field with multi values including NULL', function() {
+
+				const res = MySQL._buildFieldQuery('foo', [1, '3', null]);
+				assert.deepEqual(res.where, ['(foo IS NULL OR foo IN (:foo_0,:foo_1))']);
+				assert.deepEqual(res.placeholders, { foo_0: 1, foo_1: '3' });
+
 			});
 		});
-	})
-
-});
-
-
-/* Old Tests
-
-let stubKnex;
-	let stubBuild;
-
-	let dummyModel;
-
-	let fullTableName;
-
-	const mysql = new MySQL({});
-
-	class Model {
-		getTable() {
-			return 'table';
-		}
-	}
-
-	const knexGetter = () => {};
-
-	before(() => {
-
-		stubKnex = sinon.stub(MySQL.prototype, 'knex').get(() => knexGetter);
-
-		stubBuild = sinon.stub(QueryBuilder.prototype, 'build').callsFake(() => {
-			return true;
-		});
-
-		dummyModel = new Model();
-		dummyModel.dbname = 'dbname';
-
-		fullTableName = `${dummyModel.dbname}.${dummyModel.getTable()}`;
-	});
-
-	after(() => {
-		stubKnex.restore();
-		stubBuild.restore();
-	});
-
-describe('static getters', () => {
-		it('should return default limit', () => {
-			const DEFAULT_LIMIT = 500;
-
-			assert.equal(DEFAULT_LIMIT, MySQL.defaultLimit);
-		});
-
-		it('should return max iddle timeout', () => {
-			const MAX_IDDLE_TIMEOUT = 60 * 5;
-
-			assert.equal(MAX_IDDLE_TIMEOUT, MySQL.maxIddleTimeout);
-		});
-
-		it('should return "_filters"', () => {
-			assert.equal('_filters', MySQL.filters);
-		});
-
-		it('should return "_joins"', () => {
-			assert.equal('_joins', MySQL.joins);
-		});
-
-		it('should return "_columns"', () => {
-			assert.equal('_columns', MySQL.columns);
-		});
 
 	});
 
-	
-
-	describe('save methods', function() {
+	describe('Save Methods', function() {
 
 		let stubFields;
 		let stubCall;
@@ -322,7 +645,7 @@ describe('static getters', () => {
 				assert.deepEqual(stubCall.args[0][1], { set_foo: 'bar', foo: 'barr' });
 			});
 
-			it('if getFields not return id, date_created and date_modified', async() => {
+			it('if getFields not return id, date_created and date_modified', async function() {
 
 				const fields2 = { some: 'some' };
 				stubFields.returns(fields2);
@@ -344,12 +667,12 @@ describe('static getters', () => {
 
 		describe('should throw', function() {
 
-			it('when attempting to save with no model', async() => {
+			it('when attempting to save with no model', async function() {
 				await assert.rejects(mysql.save(), { code: MySQLError.codes.INVALID_MODEL });
 
 			});
 
-			it('when attempting to update with no model', async() => {
+			it('when attempting to update with no model', async function() {
 				await assert.rejects(mysql.update(), { code: MySQLError.codes.INVALID_MODEL });
 
 			});
@@ -365,17 +688,32 @@ describe('static getters', () => {
 		});
 	});
 
-	describe('get() getTotals()', function() {
+	describe('Get Methods', function() {
 
-		const stubExecute = result => sinon.stub(QueryBuilder.prototype, 'execute').callsFake(() => result);
+		const knexGetter = () => {};
+
+		let stubKnex;
+		let stubBuild;
+
+		beforeEach(() => {
+			stubKnex = sandbox.stub(MySQL.prototype, 'knex').get(() => knexGetter);
+			stubBuild = sandbox.stub(QueryBuilder.prototype, 'build').callsFake(() => {
+				return true;
+			});
+		});
+
+		after(() => {
+			stubKnex.restore();
+			stubBuild.restore();
+		});
 
 		const testParams = (params, expectedParams) => {
 			assert.deepEqual(params, expectedParams, 'shouldn\'t modify ofiginal params');
 		};
 
-		it('Get Totals in empty Table, should return default values', async() => {
+		it('Get Totals in empty Table, should return default values', async function() {
 
-			const stub2 = sinon.stub(MySQL.prototype, 'get').callsFake(() => [{ count: 0 }]);
+			sandbox.stub(MySQL.prototype, 'get').callsFake(() => [{ count: 0 }]);
 
 			const totalExpected = {
 				page: 1,
@@ -385,15 +723,13 @@ describe('static getters', () => {
 			};
 
 			assert.deepEqual(await mysql.getTotals(dummyModel), totalExpected);
-
-			stub2.restore();
 		});
 
 		it('Should return empty results and totals with zero values', async function() {
 
 			const params = {};
 
-			const stub = stubExecute([]);
+			sandbox.stub(QueryBuilder.prototype, 'execute').callsFake(() => []);
 
 			const result = await mysql.get(dummyModel, params);
 
@@ -405,7 +741,7 @@ describe('static getters', () => {
 
 			testParams(params, {});
 
-			stub.restore();
+
 		});
 
 		it('Should return results and totals only with filters', async function() {
@@ -413,7 +749,7 @@ describe('static getters', () => {
 			const originalParams = { someFilter: 'foo' };
 			const params = { ...originalParams };
 
-			const stubResults = stubExecute([{ result: 1 }, { result: 2 }]);
+			const stubResults = sandbox.stub(QueryBuilder.prototype, 'execute').callsFake(() => [{ result: 1 }, { result: 2 }]);
 
 			const result = await mysql.get(dummyModel, params);
 
@@ -423,7 +759,7 @@ describe('static getters', () => {
 
 			stubResults.restore();
 
-			const stubTotals = stubExecute([{ count: 650 }]);
+			sandbox.stub(QueryBuilder.prototype, 'execute').callsFake(() => [{ count: 650 }]);
 
 			const resultTotals = await mysql.getTotals(dummyModel);
 
@@ -433,8 +769,6 @@ describe('static getters', () => {
 				pageSize: 500,
 				pages: 2
 			});
-
-			stubTotals.restore();
 		});
 
 		it('Should return results and totals', async function() {
@@ -442,7 +776,7 @@ describe('static getters', () => {
 			const originalParams = { someFilter: 'foo', page: 4, limit: 10 };
 			const params = { ...originalParams };
 
-			const stubResults = stubExecute([{ result: 1 }, { result: 2 }]);
+			const stubResults = sandbox.stub(QueryBuilder.prototype, 'execute').callsFake(() => [{ result: 1 }, { result: 2 }]);
 
 			const result = await mysql.get(dummyModel, params);
 
@@ -452,7 +786,7 @@ describe('static getters', () => {
 
 			stubResults.restore();
 
-			const stubTotals = stubExecute([{ count: 650 }]);
+			sandbox.stub(QueryBuilder.prototype, 'execute').callsFake(() => [{ count: 650 }]);
 
 			const resultTotals = await mysql.getTotals(dummyModel);
 
@@ -462,11 +796,9 @@ describe('static getters', () => {
 				pageSize: 10,
 				pages: 65
 			});
-
-			stubTotals.restore();
 		});
 
-		it('Should throws Error when try to get with no model', async() => {
+		it('Should throws Error when try to get with no model', async function() {
 			await assert.rejects(mysql.get(), { code: MySQLError.codes.INVALID_MODEL });
 
 			await assert.rejects(mysql.getTotals(), { code: MySQLError.codes.INVALID_MODEL });
@@ -474,32 +806,7 @@ describe('static getters', () => {
 		});
 	});
 
-	describe('getFields()', function() {
-
-		it('Should return formatted fields', async function() {
-
-			const stubCall = sinon.stub(MySQL.prototype, '_call')
-				.returns([[{ Field: 'foo', extra: 1 }]]);
-
-			const fields = await mysql._getFields(dummyModel);
-
-			assert.deepEqual(fields, {
-				foo: { Field: 'foo', extra: 1 }
-			});
-
-			assert.equal(stubCall.args[0][0], `SHOW COLUMNS FROM ${fullTableName}`);
-
-			stubCall.restore();
-		});
-
-		it('should return Error with no model', async() => {
-
-			await assert.rejects(mysql._getFields(), { code: MySQLError.codes.INVALID_MODEL });
-
-		});
-	});
-
-	describe('remove methods', function() {
+	describe('Remove methods', function() {
 
 		let stubFields;
 		let stubCall;
@@ -570,426 +877,4 @@ describe('static getters', () => {
 		});
 	});
 
-	describe('Build field query', function() {
-
-		it('Should build field query correctly for a single value field', function() {
-
-			const values = [['foo', 'test'], ['bar', 1]];
-
-			for(const [field, value] of values) {
-				const rows = MySQL._buildFieldQuery(field, value);
-
-				assert.deepEqual(rows.where, [`${field} = :${field}`]);
-				assert.deepEqual(rows.placeholders, { [field]: value });
-			}
-
-		});
-
-		it('Should build field query correctly for a single value field with alias', function() {
-
-			const values = [['foo', 'test'], ['bar', 1]];
-			const alias = 'test';
-
-			for(const [field, value] of values) {
-				const rows = MySQL._buildFieldQuery(field, value, alias);
-
-				assert.deepEqual(rows.where, [`${alias}.${field} = :${field}`]);
-				assert.deepEqual(rows.placeholders, { [field]: value });
-			}
-
-		});
-
-		it('Should build field query correctly for a single value field with added suffix to placeholder', function() {
-
-			const values = [['foo', 'test'], ['bar', 1]];
-
-			let index = 0;
-			for(const [field, value] of values) {
-				const rows = MySQL._buildFieldQuery(field, value, '', '_' + index);
-
-				const ph = `${field}_${index}`;
-				assert.deepEqual(rows.where, [`${field} = :${ph}`]);
-				assert.deepEqual(rows.placeholders, { [ph]: value });
-
-				index++;
-			}
-
-		});
-
-		it('Should build field query correctly for field with null value', function() {
-
-			const values = [['foo', null], ['bar', null]];
-
-			let index = 0;
-			for(const [field, value] of values) {
-				const rows = MySQL._buildFieldQuery(field, value, '', '_' + index);
-
-				const ph = `${field}_${index}`;
-				assert.deepEqual(rows.where, [`${field} IS NULL`]);
-				assert.deepEqual(rows.placeholders, { [ph]: value });
-
-				index++;
-			}
-
-		});
-
-		it('Should build field query correctly for field with multi values', function() {
-
-			const res = MySQL._buildFieldQuery('foo', [1, '3']);
-
-			assert.deepEqual(res.where, ['foo IN (:foo_0,:foo_1)']);
-			assert.deepEqual(res.placeholders, { foo_0: 1, foo_1: '3' });
-
-		});
-
-		it('Should build field query correctly for field with multi values including NULL', function() {
-
-			const res = MySQL._buildFieldQuery('foo', [1, '3', null]);
-			assert.deepEqual(res.where, ['(foo IS NULL OR foo IN (:foo_0,:foo_1))']);
-			assert.deepEqual(res.placeholders, { foo_0: 1, foo_1: '3' });
-
-		});
-	});
-
-	describe('Field Mapping', function() {
-
-		const fieldsMap = {
-			order_form_id: ['orderFormId'],
-			check_boolean: ['checkBoolean'],
-			check_falsy: ['checkFalsy'],
-			check_multiple: ['checkMulti', 'checkMultiple'],
-			check_string: 'checkString',
-			some_field: ['other_field']
-		};
-
-
-		it('Should map correctly an object', function() {
-
-			const data = {
-				orderFormId: 'yes',
-				checkBoolean: true,
-				checkFalsy: false,
-				status: false,
-				checkMultiple: true,
-				CapitalField: false,
-				no: 5,
-				noMap: 6,
-				checkString: 'string'
-			};
-
-
-			const result = mysql._mapFields(data, fieldsMap);
-
-			assert.equal(result.orderFormId, undefined);
-			assert.equal(result.checkBoolean, undefined);
-			assert.equal(result.checkFalsy, undefined);
-			assert.equal(result.checkMultiple, undefined);
-			assert.equal(result.checkString, undefined);
-			assert.equal(result.CapitalField, undefined);
-
-			assert.equal(result.order_form_id, 'yes');
-			assert.equal(result.check_boolean, true);
-			assert.equal(result.check_falsy, false);
-			assert.equal(result.check_multiple, true);
-			assert.equal(result.status, false);
-			assert.equal(result.capital_field, false);
-			assert.equal(result.check_string, 'string');
-			assert.equal(result.no_map, 6);
-			assert.equal(result.no, 5);
-
-		});
-
-		it('Should map correctly an array of objects ', function() {
-
-			const data = [{
-				orderFormId: 'yes',
-				checkBoolean: true,
-				checkFalsy: false,
-				status: false,
-				checkMultiple: true,
-				nomap: 5,
-				checkString: 'string'
-			}, {
-				orderFormId: 'yes',
-				checkBoolean: true,
-				checkFalsy: false,
-				status: false,
-				checkMultiple: true,
-				nomap: 5,
-				checkString: 'string'
-			}];
-
-			const results = mysql._mapFields(data, fieldsMap);
-
-			results.forEach(result => {
-				assert.equal(result.orderFormId, undefined);
-				assert.equal(result.checkBoolean, undefined);
-				assert.equal(result.checkFalsy, undefined);
-				assert.equal(result.checkMultiple, undefined);
-				assert.equal(result.checkString, undefined);
-
-				assert.equal(result.order_form_id, 'yes');
-				assert.equal(result.check_boolean, true);
-				assert.equal(result.check_falsy, false);
-				assert.equal(result.check_multiple, true);
-				assert.equal(result.status, false);
-				assert.equal(result.check_string, 'string');
-				assert.equal(result.nomap, 5);
-			});
-
-		});
-
-		it('Should leave symbols properties unchanged', function() {
-
-			const data = [{
-				[Symbol.for('mock')]: 'symbol',
-				nomap: 5
-			}, {
-				[Symbol.for('mock')]: 'symbol',
-				nomap: 5
-			}];
-
-			const results = mysql._mapFields(data, fieldsMap);
-
-			results.forEach(result => {
-				assert.equal(result[Symbol.for('mock')], 'symbol');
-				assert.equal(result.nomap, 5);
-			});
-
-		});
-	});
-
-	describe('Prepare Fields', function() {
-
-		const expectedPrepareFieldsEmpty = {
-			where: [],
-			placeholders: {},
-			columns: ['*'],
-			joins: ''
-		};
-
-		const expectedPrepareFields = {
-			where: ['foo = :foo'],
-			placeholders: { foo: 'bar' },
-			columns: ['*'],
-			joins: ''
-		};
-
-		it('should return Error with no model', async() => {
-
-			await assert.rejects(mysql._prepareFields(), { code: MySQLError.codes.INVALID_MODEL });
-
-		});
-
-		it('should return empty fields with no fields', async() => {
-
-			const preparedFields = await mysql._prepareFields(dummyModel);
-			assert.deepEqual(preparedFields, expectedPrepareFieldsEmpty);
-
-		});
-
-		it('should return the correct where and placeholders fields', async() => {
-
-			const stubCall = sinon.stub(MySQL.prototype, '_call')
-				.returns([[{ Field: 'foo' }]]);
-
-			const preparedFields = await mysql._prepareFields(dummyModel, { foo: 'bar' });
-
-			assert.deepEqual(preparedFields, expectedPrepareFields);
-
-			stubCall.restore();
-
-		});
-
-		it('should return LEFT JOIN query if Join Type field not exist', async() => {
-
-			const stubCall = sinon.stub(MySQL.prototype, '_call')
-				.returns([[{ Field: 'foo' }]]);
-
-			const fakeFields = {
-				foo: 'bar',
-				_joins: [
-					{ table: 'table_b', alias: 'tb', condition: 'foo' }
-				]
-			};
-
-			const preparedFields = await mysql._prepareFields(dummyModel, fakeFields);
-			expectedPrepareFields.joins = ' LEFT JOIN dbname.table_b tb ON foo';
-
-			assert.deepEqual(preparedFields, expectedPrepareFields);
-
-			expectedPrepareFields.joins = '';
-			stubCall.restore();
-
-		});
-
-		it('should return empty join string if join type is \'\'', async() => {
-
-			const stubCall = sinon.stub(MySQL.prototype, '_call')
-				.returns([[{ Field: 'foo' }]]);
-
-			const fakeFields = {
-				foo: 'bar',
-				_joins: [
-					{ table: 'table_b', type: '', alias: 'tb', condition: 'foo' }
-				]
-			};
-
-			const preparedFields = await mysql._prepareFields(dummyModel, fakeFields);
-
-			assert.deepEqual(preparedFields, expectedPrepareFields);
-
-			expectedPrepareFields.joins = '';
-			stubCall.restore();
-
-		});
-
-		it('should return RIGHT JOIN query with join type is \'RIGHT\' ', async() => {
-
-			const stubCall = sinon.stub(MySQL.prototype, '_call')
-				.returns([[{ Field: 'foo' }]]);
-
-			const fakeFields = {
-				foo: 'bar',
-				_joins: [
-					{ table: 'table_b', type: 'RIGHT', alias: 'tb', condition: 'foo' }
-				]
-			};
-
-			const preparedFields = await mysql._prepareFields(dummyModel, fakeFields);
-			expectedPrepareFields.joins = ' RIGHT JOIN dbname.table_b tb ON foo';
-
-			assert.deepEqual(preparedFields, expectedPrepareFields);
-
-			expectedPrepareFields.joins = '';
-			stubCall.restore();
-
-		});
-	});
-
-	describe('shouldDestroyConnectionPool', function() {
-
-		it('should return true', function() {
-
-			const now = Date.now() / 1000 | 0;
-
-			const dates = [
-				now - MySQL.maxIddleTimeout - 50 // 50 seconds after iddle timeout limit
-			];
-
-			dates.forEach(lastActivity => {
-				assert(mysql._shouldDestroyConnectionPool(lastActivity));
-			});
-
-			assert(mysql._shouldDestroyConnectionPool());
-		});
-
-		it('should return false', function() {
-
-			const now = Date.now() / 1000 | 0;
-
-			const dates = [
-				now - MySQL.maxIddleTimeout + 50 // 50 seconds before iddle timeout limit
-			];
-
-			dates.forEach(lastActivity => {
-				assert(!mysql._shouldDestroyConnectionPool(lastActivity));
-			});
-
-		});
-
-	});
-
-	describe('End Connection', function() {
-		it('should end the connection', function() {
-			//mysql.end();
-			//mysql.closeIddleConnections();
-		})
-	});
-
-	describe('Calls', function() {
-
-		const validQuery = 'SHOW COLUMNS FROM `table`';
-
-		const queryError = new Error('Some Query Error');
-		queryError.errno = 1206;
-		queryError.code = 'Invalid Query';
-
-		const connection = {
-			config: {},
-			query: async queryToResolve => {
-				if(queryToResolve !== validQuery)
-					throw queryError;
-
-				return ([[{ Field: 'foo' }]]);
-			},
-			release: () => true
-		};
-
-		// const poolStub = sinon.stub(MySQL.prototype, 'pool').get( () => ({ getConnection: () => ({connection}) }));
-
-		it('should return positives results', async() => {
-			const connectionStub = sinon.stub(MySQL.prototype, 'getConnection')
-				.returns(connection);
-
-			const callQuery = await mysql._call(validQuery, {});
-
-			assert.deepEqual(callQuery, [[{ Field: 'foo' }]]);
-			connectionStub.restore();
-		});
-
-		it('should reconnect', async() => {
-			const connectionStub = sinon.stub(MySQL.prototype, 'getConnection');
-
-			connectionStub
-				.onCall(0)
-				.rejects(new MySQLError('Too Many Connections', MySQLError.codes.TOO_MANY_CONNECTION));
-
-			connectionStub
-				.onCall(1)
-				.returns(connection);
-
-			const callQuery = await mysql._call(validQuery, {});
-
-			assert.deepEqual(callQuery, [[{ Field: 'foo' }]]);
-			connectionStub.restore();
-		});
-
-		it('should thrown MySQLError if query is wrong/invalid ', async() => {
-			const connectionStub = sinon.stub(MySQL.prototype, 'getConnection')
-				.returns(connection);
-
-			await assert.rejects(mysql._call('SOME INVALID QUERY', {}), { code: MySQLError.codes.INVALID_QUERY });
-
-			connectionStub.restore();
-		});
-
-
-		it('should return MySQLError from Database', async() => {
-			const connectionStub = sinon.stub(MySQL.prototype, 'getConnection')
-				.rejects(new MySQLError('Database Error', MySQLError.codes.CONNECTION_ERROR));
-
-			await assert.rejects(mysql._call(validQuery, {}), { code: MySQLError.codes.CONNECTION_ERROR });
-			connectionStub.restore();
-		});
-
-	});
-
-	describe('Query Format', function() {
-
-		const queryString = value => `SHOW COLUMNS FROM ${value}`;
-
-		it('should return the same Query String if value dont exist', () => {
-			assert.equal(mysql._queryFormat(queryString('`table`')), queryString('`table`'));
-		});
-
-		it('should return the Query String with correct value change', () => {
-			assert.equal(mysql._queryFormat(queryString(':foo'), { foo: 'bar' }), queryString('\'bar\''));
-		});
-
-		it('should return the Query String with correct value format', () => {
-			assert.equal(mysql._queryFormat(queryString(':foo'), 'foo'), queryString(':foo'));
-		});
-	});
-
-*/
+});

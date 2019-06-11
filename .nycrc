@@ -1,7 +1,8 @@
 {
   "exclude": [
     "tests/",
-    ".eslintrc.js"
+    ".eslintrc.js",
+    "mocks/"
   ],
   "extension": [
     ".js"
