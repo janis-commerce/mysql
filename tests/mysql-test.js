@@ -2,29 +2,31 @@
 
 const assert = require('assert');
 const sinon = require('sinon');
-const mock = require('mock-require');
 const QueryBuilder = require('@janiscommerce/query-builder');
 
-const { MySQL: mysql2Mock, validQueryManager } = require('../mocks/mysql-mock');
-
-mock('mysql2/promise', mysql2Mock);
-
-const { MySQLError } = require('./../mysql');
+const { MySQLError } = require('./../lib');
 const MySQL = require('./../index');
 
 /* eslint-disable prefer-arrow-callback */
 
 const sandbox = sinon.createSandbox();
 
-const sanitizeQuery = string => string.replace(/[\n\t]/g, ' ')
-	.replace(/\s+/g, ' ')
-	.trim();
-
 describe('MySQL module', function() {
 
 	class Model {
 		getTable() {
 			return 'table';
+		}
+
+		addDbName(t) {
+			return t;
+		}
+
+		static get fields() {
+			return {
+				id: true,
+				superhero: true
+			};
 		}
 	}
 
@@ -33,678 +35,237 @@ describe('MySQL module', function() {
 	const dummyModel = new Model();
 	dummyModel.dbname = 'dbname';
 
-	const fullTableName = `${dummyModel.dbname}.${dummyModel.getTable()}`;
-
 	after(() => {
 		sandbox.restore();
-		mock.stopAll();
-	});
-
-
-	afterEach(() => {
-		sandbox.restore();
-		validQueryManager.cleanQueries();
-	});
-
-	describe('Connections Test', function() {
-
-		describe('ConnecionPool - setter and getter', function() {
-
-			it('Should return empty object when no pool connection was set', () => {
-
-				assert(typeof MySQL.connectionPool, 'Object');
-				assert.deepEqual({}, MySQL.connectionPool, 'it should by {}');
-			});
-
-			it('Should set a connection', function() {
-
-				const threadId = 123;
-				MySQL.connectionPool = { threadId };
-
-				assert(typeof MySQL.connectionPool, 'Object');
-				assert(typeof MySQL.connectionPool[threadId], 'Object');
-				assert(typeof MySQL.connectionPool[threadId].lastActivity, 'number');
-
-				const now = Date.now() / 1000 | 0;
-
-				assert(MySQL.connectionPool[threadId].lastActivity >= now);
-				assert.equal(MySQL.connectionPool[threadId].id, threadId);
-
-			});
-
-		});
-
-		describe('Pool Getter', function() {
-
-			it('\'_pool\' field must be \'undefined\' before get \'pool\'', function() {
-
-				assert.equal(typeof mysql._pool, 'undefined');
-				assert.equal(typeof mysql.pool, 'object');
-
-			});
-
-			it('After get \'pool\' must be Pool must be setted and be equal', function() {
-
-				assert.equal(typeof mysql.pool, 'object');
-				assert.deepEqual(mysql.pool, mysql._pool);
-
-			});
-
-		});
-
-		describe('Getting Connection', function() {
-
-			it('should connect and add QueryFormat', async function() {
-				const poolConnection = await mysql.getConnection();
-
-				assert(typeof poolConnection, 'object');
-				assert(poolConnection.connection.config.queryFormat);
-			});
-
-			it('should get Error when connection is not working', async function() {
-
-				sandbox.stub(MySQL.prototype, 'pool')
-					.get(() => { throw new Error('Database Error'); });
-
-				await assert.rejects(mysql.getConnection(), { code: MySQLError.codes.CONNECTION_ERROR });
-			});
-
-			it('should get MySqlError when Pool have too many connection', async function() {
-
-				const SqlErrorTooManyConnection = new Error('Too Many Connection');
-				SqlErrorTooManyConnection.code = 'ER_CON_COUNT_ERROR';
-
-				sandbox.stub(MySQL.prototype, 'pool')
-					.get(() => { throw SqlErrorTooManyConnection; });
-
-				await assert.rejects(mysql.getConnection(), { code: MySQLError.codes.TOO_MANY_CONNECTION });
-
-			});
-
-		});
-
-		describe('Making Calls', function() {
-
-			const validQuery = `SHOW COLUMNS FROM ${fullTableName}`;
-
-			const queryError = new Error('Some Query Error');
-			queryError.errno = 1206;
-			queryError.code = 'Invalid Query';
-
-			const connection = {
-				config: {},
-				query: async queryToResolve => {
-					if(queryToResolve !== validQuery)
-						throw queryError;
-
-					return ([[{ Field: 'foo' }]]);
-				},
-				release: () => true
-			};
-
-			it('should return positives results', async() => {
-				validQueryManager.addValidQuery(validQuery, [[{ Field: 'foo' }]]);
-
-				const callQuery = await mysql._call(validQuery, {});
-
-				assert.deepEqual(callQuery, [[{ Field: 'foo' }]]);
-			});
-
-			it('should thrown MySQLError if query is wrong/invalid ', async() => {
-
-				await assert.rejects(mysql._call('SOME INVALID QUERY', {}), { code: MySQLError.codes.INVALID_QUERY });
-			});
-
-			it('should return MySQLError from Database', async() => {
-				sandbox.stub(MySQL.prototype, 'getConnection')
-					.rejects(new MySQLError('Database Error', MySQLError.codes.CONNECTION_ERROR));
-
-				await assert.rejects(mysql._call(validQuery, {}), { code: MySQLError.codes.CONNECTION_ERROR });
-			});
-
-			it('should reconnect', async() => {
-
-				const connectionStub = sandbox.stub(MySQL.prototype, 'getConnection');
-
-				connectionStub
-					.onCall(0)
-					.rejects(new MySQLError('Too Many Connections', MySQLError.codes.TOO_MANY_CONNECTION));
-
-				connectionStub
-					.onCall(1)
-					.returns(connection);
-
-				const callQuery = await mysql._call(validQuery, {});
-
-				assert.deepEqual(callQuery, [[{ Field: 'foo' }]]);
-			});
-
-		});
-
-		describe('Should Destroy Connection Pool', function() {
-
-			it('should return true', function() {
-
-				const now = Date.now() / 1000 | 0;
-
-				const dates = [
-					now - MySQL.maxIddleTimeout - 50 // 50 seconds after iddle timeout limit
-				];
-
-				dates.forEach(lastActivity => {
-					assert(mysql._shouldDestroyConnectionPool(lastActivity));
-				});
-
-				assert(mysql._shouldDestroyConnectionPool());
-			});
-
-			it('should return false', function() {
-
-				const now = Date.now() / 1000 | 0;
-
-				const dates = [
-					now - MySQL.maxIddleTimeout + 50 // 50 seconds before iddle timeout limit
-				];
-
-				dates.forEach(lastActivity => {
-					assert(!mysql._shouldDestroyConnectionPool(lastActivity));
-				});
-
-			});
-
-		});
-
-	});
-
-	describe('Field Preparations', function() {
-
-		describe('Query Format', function() {
-
-			const queryString = value => `SHOW COLUMNS FROM ${value}`;
-
-			it('should return the same Query String if value dont exist', function() {
-				assert.equal(mysql._queryFormat(queryString('`table`')), queryString('`table`'));
-			});
-
-			it('should return the Query String with correct value change', function() {
-				assert.equal(mysql._queryFormat(queryString(':foo'), { foo: 'bar' }), queryString('\'bar\''));
-			});
-
-			it('should return the Query String with correct value format', function() {
-				assert.equal(mysql._queryFormat(queryString(':foo'), 'foo'), queryString(':foo'));
-			});
-		});
-
-		describe('Field Mapping', function() {
-
-			const fieldsMap = {
-				order_form_id: ['orderFormId'],
-				check_boolean: ['checkBoolean'],
-				check_falsy: ['checkFalsy'],
-				check_multiple: ['checkMulti', 'checkMultiple'],
-				check_string: 'checkString',
-				some_field: ['other_field']
-			};
-
-			it('Should not map anything and get empty object', function() {
-				assert.deepEqual(mysql._mapItem(), {});
-			});
-
-			it('Should map correctly an object', function() {
-
-				const data = {
-					orderFormId: 'yes',
-					checkBoolean: true,
-					checkFalsy: false,
-					status: false,
-					checkMultiple: true,
-					CapitalField: false,
-					no: 5,
-					noMap: 6,
-					checkString: 'string'
-				};
-
-
-				const result = mysql._mapFields(data, fieldsMap);
-
-				assert.equal(result.orderFormId, undefined);
-				assert.equal(result.checkBoolean, undefined);
-				assert.equal(result.checkFalsy, undefined);
-				assert.equal(result.checkMultiple, undefined);
-				assert.equal(result.checkString, undefined);
-				assert.equal(result.CapitalField, undefined);
-
-				assert.equal(result.order_form_id, 'yes');
-				assert.equal(result.check_boolean, true);
-				assert.equal(result.check_falsy, false);
-				assert.equal(result.check_multiple, true);
-				assert.equal(result.status, false);
-				assert.equal(result.capital_field, false);
-				assert.equal(result.check_string, 'string');
-				assert.equal(result.no_map, 6);
-				assert.equal(result.no, 5);
-
-			});
-
-			it('Should map correctly an array of objects ', function() {
-
-				const data = [{
-					orderFormId: 'yes',
-					checkBoolean: true,
-					checkFalsy: false,
-					status: false,
-					checkMultiple: true,
-					nomap: 5,
-					checkString: 'string'
-				}, {
-					orderFormId: 'yes',
-					checkBoolean: true,
-					checkFalsy: false,
-					status: false,
-					checkMultiple: true,
-					nomap: 5,
-					checkString: 'string'
-				}];
-
-				const results = mysql._mapFields(data, fieldsMap);
-
-				results.forEach(result => {
-					assert.equal(result.orderFormId, undefined);
-					assert.equal(result.checkBoolean, undefined);
-					assert.equal(result.checkFalsy, undefined);
-					assert.equal(result.checkMultiple, undefined);
-					assert.equal(result.checkString, undefined);
-
-					assert.equal(result.order_form_id, 'yes');
-					assert.equal(result.check_boolean, true);
-					assert.equal(result.check_falsy, false);
-					assert.equal(result.check_multiple, true);
-					assert.equal(result.status, false);
-					assert.equal(result.check_string, 'string');
-					assert.equal(result.nomap, 5);
-				});
-
-			});
-
-			it('Should leave symbols properties unchanged', function() {
-
-				const data = [{
-					[Symbol.for('mock')]: 'symbol',
-					nomap: 5
-				}, {
-					[Symbol.for('mock')]: 'symbol',
-					nomap: 5
-				}];
-
-				const results = mysql._mapFields(data, fieldsMap);
-
-				results.forEach(result => {
-					assert.equal(result[Symbol.for('mock')], 'symbol');
-					assert.equal(result.nomap, 5);
-				});
-
-			});
-		});
-
-		describe('Prepare Fields', function() {
-
-			const expectedPrepareFieldsEmpty = {
-				where: [],
-				placeholders: {},
-				columns: ['*'],
-				joins: ''
-			};
-
-			const expectedPrepareFields = {
-				where: ['foo = :foo'],
-				placeholders: { foo: 'bar' },
-				columns: ['*'],
-				joins: ''
-			};
-
-			beforeEach(() => {
-				validQueryManager.addValidQuery(`SHOW COLUMNS FROM ${fullTableName}`, [[{ Field: 'foo' }]]);
-			});
-
-			after(() => {
-				validQueryManager.cleanQueries();
-			});
-
-			it('should return Error with no model', async function() {
-
-				await assert.rejects(mysql._prepareFields(), { code: MySQLError.codes.INVALID_MODEL });
-
-			});
-
-			it('should return empty fields with no fields', async function() {
-
-				const preparedFields = await mysql._prepareFields(dummyModel);
-				assert.deepEqual(preparedFields, expectedPrepareFieldsEmpty);
-
-			});
-
-			it('should return the correct where and placeholders fields', async function() {
-
-				const preparedFields = await mysql._prepareFields(dummyModel, { foo: 'bar' });
-
-				assert.deepEqual(preparedFields, expectedPrepareFields);
-
-			});
-
-			it('should return LEFT JOIN query if Join Type field not exist', async function() {
-
-				const fakeFields = {
-					foo: 'bar',
-					_joins: [
-						{ table: 'table_b', alias: 'tb', condition: 'foo' }
-					]
-				};
-
-				const preparedFields = await mysql._prepareFields(dummyModel, fakeFields);
-				expectedPrepareFields.joins = ' LEFT JOIN dbname.table_b tb ON foo';
-
-				assert.deepEqual(preparedFields, expectedPrepareFields);
-
-				expectedPrepareFields.joins = '';
-
-			});
-
-			it('should return empty join string if join type is \'\'', async function() {
-
-				const fakeFields = {
-					foo: 'bar',
-					_joins: [
-						{ table: 'table_b', type: '', alias: 'tb', condition: 'foo' }
-					]
-				};
-
-				const preparedFields = await mysql._prepareFields(dummyModel, fakeFields);
-
-				assert.deepEqual(preparedFields, expectedPrepareFields);
-
-				expectedPrepareFields.joins = '';
-
-			});
-
-			it('should return RIGHT JOIN query with join type is \'RIGHT\' ', async function() {
-
-				const fakeFields = {
-					foo: 'bar',
-					_joins: [
-						{ table: 'table_b', type: 'RIGHT', alias: 'tb', condition: 'foo' }
-					]
-				};
-
-				const preparedFields = await mysql._prepareFields(dummyModel, fakeFields);
-				expectedPrepareFields.joins = ' RIGHT JOIN dbname.table_b tb ON foo';
-
-				assert.deepEqual(preparedFields, expectedPrepareFields);
-
-				expectedPrepareFields.joins = '';
-
-			});
-		});
-
-		describe('Get Fields', function() {
-
-			it('Should return formatted fields', async function() {
-
-				validQueryManager.addValidQuery(`SHOW COLUMNS FROM ${fullTableName}`, [[{ Field: 'foo', extra: 1 }]]);
-
-				const fields = await mysql._getFields(dummyModel);
-
-				assert.deepEqual(fields, {
-					foo: { Field: 'foo', extra: 1 }
-				});
-
-				validQueryManager.cleanQueries();
-
-			});
-
-			it('should return Error with no model', async function() {
-
-				await assert.rejects(mysql._getFields(), { code: MySQLError.codes.INVALID_MODEL });
-
-			});
-
-		});
-
-		describe('Build field query', function() {
-
-			it('Should build field query correctly for a single value field', function() {
-
-				const values = [['foo', 'test'], ['bar', 1]];
-
-				for(const [field, value] of values) {
-					const rows = MySQL._buildFieldQuery(field, value);
-
-					assert.deepEqual(rows.where, [`${field} = :${field}`]);
-					assert.deepEqual(rows.placeholders, { [field]: value });
-				}
-
-			});
-
-			it('Should build field query correctly for a single value field with alias', function() {
-
-				const values = [['foo', 'test'], ['bar', 1]];
-				const alias = 'test';
-
-				for(const [field, value] of values) {
-					const rows = MySQL._buildFieldQuery(field, value, alias);
-
-					assert.deepEqual(rows.where, [`${alias}.${field} = :${field}`]);
-					assert.deepEqual(rows.placeholders, { [field]: value });
-				}
-
-			});
-
-			it('Should build field query correctly for a single value field with added suffix to placeholder', function() {
-
-				const values = [['foo', 'test'], ['bar', 1]];
-
-				let index = 0;
-				for(const [field, value] of values) {
-					const rows = MySQL._buildFieldQuery(field, value, '', '_' + index);
-
-					const ph = `${field}_${index}`;
-					assert.deepEqual(rows.where, [`${field} = :${ph}`]);
-					assert.deepEqual(rows.placeholders, { [ph]: value });
-
-					index++;
-				}
-
-			});
-
-			it('Should build field query correctly for field with null value', function() {
-
-				const values = [['foo', null], ['bar', null]];
-
-				let index = 0;
-				for(const [field, value] of values) {
-					const rows = MySQL._buildFieldQuery(field, value, '', '_' + index);
-
-					const ph = `${field}_${index}`;
-					assert.deepEqual(rows.where, [`${field} IS NULL`]);
-					assert.deepEqual(rows.placeholders, { [ph]: value });
-
-					index++;
-				}
-
-			});
-
-			it('Should build field query correctly for field with multi values', function() {
-
-				const res = MySQL._buildFieldQuery('foo', [1, '3']);
-
-				assert.deepEqual(res.where, ['foo IN (:foo_0,:foo_1)']);
-				assert.deepEqual(res.placeholders, { foo_0: 1, foo_1: '3' });
-
-			});
-
-			it('Should build field query correctly for field with multi values including NULL', function() {
-
-				const res = MySQL._buildFieldQuery('foo', [1, '3', null]);
-				assert.deepEqual(res.where, ['(foo IS NULL OR foo IN (:foo_0,:foo_1))']);
-				assert.deepEqual(res.placeholders, { foo_0: 1, foo_1: '3' });
-
-			});
-		});
-
 	});
 
 	describe('Save Methods', function() {
 
-		let stubFields;
-		let stubCall;
-		const insertId = 345;
+		context('when attempting to save/insert/update with valid item and fields', function() {
 
-		before(() => {
+			beforeEach(() => {
+				const knexGetter = { raw: () => true };
+				sandbox.stub(MySQL.prototype, 'knex').get(() => knexGetter);
+			});
 
-			const fields = {};
-			['id', 'foo', 'date_created', 'date_modified'].forEach(field => { fields[field] = field; });
-			fields.date_test = { Field: 'date_test', Type: 'datetime' };
+			afterEach(() => {
+				sandbox.restore();
+			});
 
-			stubFields = sinon.stub(MySQL.prototype, '_getFields')
-				.returns(fields);
+			it('should return true if try to insert a new Item', async function() {
 
-			stubCall = sinon.stub(MySQL.prototype, '_call')
-				.returns([{ insertId }]);
-		});
+				sandbox.stub(QueryBuilder.prototype, 'insert').callsFake(() => {
+					return [0];
+				});
 
-		afterEach(() => {
-			stubCall.resetHistory();
-		});
+				const result = await mysql.insert(dummyModel, {
+					id: 1,
+					superhero: 'superman'
+				});
 
-		after(() => {
-			stubFields.restore();
-			stubCall.restore();
-		});
+				assert.equal(result, true);
+			});
 
-		describe('should save/insert/update', function() {
+			it('should return false if try to insert an item that already exist', async function() {
 
-			it('when attempting to save with valid fields', async function() {
+				sandbox.stub(QueryBuilder.prototype, 'insert').rejects();
+
+				const result = await mysql.insert(dummyModel, {
+					id: 1,
+					superhero: 'superman'
+				});
+
+				assert.equal(result, false);
+			});
+
+			it('should return true if try to save a new item', async function() {
+
+				sandbox.stub(QueryBuilder.prototype, 'save').callsFake(() => {
+					return [{ affectedRows: 1, insertId: 0 }];
+				});
 
 				const result = await mysql.save(dummyModel, {
-					foo: 'bar',
-					wrongField: 2
+					id: 2,
+					superhero: 'batman'
 				});
 
-				const expectedQuery = sanitizeQuery(`INSERT INTO ${fullTableName}
-					(foo, date_created, date_modified)
-					VALUES (:foo, :date_created, :date_modified)
-					ON DUPLICATE KEY UPDATE id = LAST_INSERT_ID(id), foo = VALUES(foo), date_modified = VALUES(date_modified)`);
-
-				assert.equal(sanitizeQuery(stubCall.args[0][0]), expectedQuery);
-
-				assert.equal(result, insertId);
+				assert.equal(result, true);
 			});
 
-			it('when attempting to insert with valid fields', async function() {
+			it('should return true if try to save an old item', async function() {
 
-				const result = await mysql.insert(dummyModel, {
-					foo: 'bar',
-					dateCreated: (Date.now() / 1000 | 0),
-					wrongField: 4
+				sandbox.stub(QueryBuilder.prototype, 'save').callsFake(() => {
+					return [{ affectedRows: 2 }];
 				});
 
-				const expectedQuery = sanitizeQuery(`INSERT INTO ${fullTableName}
-					(foo, date_created, date_modified)
-					VALUES (:foo, :date_created, :date_modified)`);
-
-				assert.equal(sanitizeQuery(stubCall.args[0][0]), expectedQuery);
-
-				assert.equal(result, insertId);
-			});
-
-			it('when attempting to update with valid fields', async function() {
-
-				await mysql.update(dummyModel, {
-					foo: 'bar'
+				const result = await mysql.save(dummyModel, {
+					id: 1,
+					superhero: 'hulk'
 				});
 
-				const expectedQuery = sanitizeQuery(`UPDATE ${fullTableName}
-					SET foo = :set_foo`);
-
-				assert.equal(sanitizeQuery(stubCall.args[0][0]), expectedQuery);
-				assert.deepEqual(stubCall.args[0][1], { set_foo: 'bar' });
+				assert.equal(result, true);
 			});
 
-			it('when attempting to update with valid fields and filter', async function() {
 
-				await mysql.update(dummyModel, {
-					_filters: { foo: 'barr' },
-					foo: 'bar',
-					date_test: true
+			it('should return number of rows affected if try to update using filters to match items', async function() {
+
+				sandbox.stub(QueryBuilder.prototype, 'update').callsFake(() => {
+					return 2;
 				});
 
-				const expectedQuery = sanitizeQuery(`UPDATE ${fullTableName}
-					SET foo = :set_foo, date_test = NOW()
-					WHERE foo = :foo`);
+				const result = await mysql.update(dummyModel, {
+					superhero: 'Mengano',
+					filter: {
+						id: { value: 10, type: 'lesser' }
+					}
+				});
 
-				assert.equal(sanitizeQuery(stubCall.args[0][0]), expectedQuery);
-				assert.deepEqual(stubCall.args[0][1], { set_foo: 'bar', foo: 'barr' });
+				assert.equal(result, 2);
 			});
 
-			it('if getFields not return id, date_created and date_modified', async function() {
+			it('should return 0 if try to update using filters don\'t match any item', async function() {
 
-				const fields2 = { some: 'some' };
-				stubFields.returns(fields2);
+				sandbox.stub(QueryBuilder.prototype, 'update').callsFake(() => {
+					return 0;
+				});
 
-				const result = await mysql.insert(dummyModel, {
-					some: 'bar'
-				}, false);
+				const result = await mysql.update(dummyModel, {
+					superhero: 'Mengano',
+					filter: {
+						id: { value: 10, type: 'greater' }
+					}
+				});
 
-				const expectedQuery = sanitizeQuery(`INSERT INTO ${fullTableName}
-					(some) VALUES (:some)`);
+				assert.equal(result, 0);
+			});
 
-				assert.equal(sanitizeQuery(stubCall.args[0][0]), expectedQuery);
+			it('should return 1 if try to multi-Insert a new Item', async function() {
 
-				assert.equal(result, insertId);
+				sandbox.stub(QueryBuilder.prototype, 'save').callsFake(() => {
+					return [{ affectedRows: 1 }];
+				});
 
+				const result = await mysql.multiInsert(dummyModel, [{
+					id: 3,
+					superhero: 'hulk'
+				}]);
+
+
+				assert.equal(result, 1);
+			});
+
+			it('should return the quantity of new items as rows affected if try to multi-Insert new Items', async function() {
+
+				sandbox.stub(QueryBuilder.prototype, 'save').callsFake(() => {
+					return [{ affectedRows: 3 }];
+				});
+
+				const result = await mysql.multiInsert(dummyModel, [
+					{ id: 4, superhero: 'robin' },
+					{ id: 5, superhero: 'robocop' },
+					{ id: 6, superhero: 'moon knight' }
+				]);
+
+
+				assert.equal(result, 3);
+			});
+
+			it('should return the double of quantity of new items as rows affected if try to multi-Insert Items which already exist', async function() {
+
+				sandbox.stub(QueryBuilder.prototype, 'save').callsFake(() => {
+					return [{ affectedRows: 4 }];
+				});
+
+				const result = await mysql.multiInsert(dummyModel, [
+					{ id: 1, superhero: 'iroman' },
+					{ id: 2, superhero: 'thor' }
+				]);
+
+
+				assert.equal(result, 4);
 			});
 
 		});
 
-		describe('should throw', function() {
+		context('when attempting to save/insert/update without a valid knex', function() {
 
-			it('when attempting to save with no model', async function() {
-				await assert.rejects(mysql.save(), { code: MySQLError.codes.INVALID_MODEL });
+			beforeEach(() => {
+				const knexGetter = {};
+				sandbox.stub(MySQL.prototype, 'knex').get(() => knexGetter);
+			});
+
+			afterEach(() => {
+				sandbox.restore();
+			});
+
+			it('should return false if try to insert', async function() {
+				assert.equal(await mysql.insert(dummyModel, { id: 10, superhero: 'Green Goblin' }), false);
+			});
+
+			it('should return false if try to save', async function() {
+				assert.equal(await mysql.save(dummyModel, { id: 10, superhero: 'Green Goblin' }), false);
 
 			});
 
-			it('when attempting to update with no model', async function() {
-				await assert.rejects(mysql.update(), { code: MySQLError.codes.INVALID_MODEL });
+			it('should return 0 if try to update', async function() {
+				assert.equal(await mysql.update(dummyModel, { superhero: 'Red Goblin', filters: { id: { value_: 1 } } }), 0);
 
 			});
 
-			it('when attempting to save and fields not found in table structure', async function() {
-				await assert.rejects(() => mysql.save(dummyModel, { wrongField: 23 }), MySQLError);
-			});
+			it('should return 0 if try to multi-insert', async function() {
+				assert.equal(await mysql.multiInsert(dummyModel, [{ id: 10, superhero: 'Green Goblin' }, { id: 11, superhero: 'Red Goblin' }]), false);
 
-			it('when attempting to update and fields not found in table structure', async function() {
-				await assert.rejects(() => mysql.update(dummyModel, { wrongField: 23 }), MySQLError);
 			});
-
 		});
+
+		context('when attempting to save/insert/update without a model', function() {
+
+			beforeEach(() => {
+				const knexGetter = { raw: () => true };
+				sandbox.stub(MySQL.prototype, 'knex').get(() => knexGetter);
+			});
+
+			afterEach(() => {
+				sandbox.restore();
+			});
+
+			it('should return MySqlError if try to insert', async function() {
+				await assert.rejects(mysql.insert(null, { id: 10, superhero: 'Green Goblin' }), { code: MySQLError.codes.INVALID_MODEL });
+			});
+
+			it('should return MySqlError if try to save', async function() {
+				await assert.rejects(mysql.save(null, { id: 10, superhero: 'Green Goblin' }), { code: MySQLError.codes.INVALID_MODEL });
+
+			});
+
+			it('should return MySqlError if try to update', async function() {
+				await assert.rejects(mysql.update(null, { superhero: 'Red Goblin', filters: { id: { value_: 1 } } }),
+					{ code: MySQLError.codes.INVALID_MODEL });
+
+			});
+
+			it('should return MySqlError if try to multi-insert', async function() {
+				await assert.rejects(mysql.multiInsert(null, [{ id: 10, superhero: 'Green Goblin' }, { id: 11, superhero: 'Red Goblin' }]),
+					{ code: MySQLError.codes.INVALID_MODEL });
+
+			});
+		});
+
 	});
 
 	describe('Get Methods', function() {
 
-		const knexGetter = () => {};
-
-		let stubKnex;
-		let stubBuild;
+		let stubGet;
 
 		beforeEach(() => {
-			stubKnex = sandbox.stub(MySQL.prototype, 'knex').get(() => knexGetter);
-			stubBuild = sandbox.stub(QueryBuilder.prototype, 'build').callsFake(() => {
-				return true;
-			});
+			const knexGetter = { raw: () => true };
+			sandbox.stub(MySQL.prototype, 'knex').get(() => knexGetter);
+			stubGet = sandbox.stub(QueryBuilder.prototype, 'get');
 		});
 
-		after(() => {
-			stubKnex.restore();
-			stubBuild.restore();
+		afterEach(() => {
+			sandbox.restore();
+			stubGet.restore();
 		});
 
 		const testParams = (params, expectedParams) => {
@@ -713,7 +274,7 @@ describe('MySQL module', function() {
 
 		it('Get Totals in empty Table, should return default values', async function() {
 
-			sandbox.stub(MySQL.prototype, 'get').callsFake(() => [{ count: 0 }]);
+			stubGet.callsFake(() => [{ count: 0 }]);
 
 			const totalExpected = {
 				page: 1,
@@ -729,7 +290,7 @@ describe('MySQL module', function() {
 
 			const params = {};
 
-			sandbox.stub(QueryBuilder.prototype, 'execute').callsFake(() => []);
+			stubGet.callsFake(() => []);
 
 			const result = await mysql.get(dummyModel, params);
 
@@ -749,7 +310,7 @@ describe('MySQL module', function() {
 			const originalParams = { someFilter: 'foo' };
 			const params = { ...originalParams };
 
-			const stubResults = sandbox.stub(QueryBuilder.prototype, 'execute').callsFake(() => [{ result: 1 }, { result: 2 }]);
+			stubGet.callsFake(() => [{ result: 1 }, { result: 2 }]);
 
 			const result = await mysql.get(dummyModel, params);
 
@@ -757,9 +318,7 @@ describe('MySQL module', function() {
 
 			testParams(params, originalParams);
 
-			stubResults.restore();
-
-			sandbox.stub(QueryBuilder.prototype, 'execute').callsFake(() => [{ count: 650 }]);
+			stubGet.callsFake(() => [{ count: 650 }]);
 
 			const resultTotals = await mysql.getTotals(dummyModel);
 
@@ -776,7 +335,7 @@ describe('MySQL module', function() {
 			const originalParams = { someFilter: 'foo', page: 4, limit: 10 };
 			const params = { ...originalParams };
 
-			const stubResults = sandbox.stub(QueryBuilder.prototype, 'execute').callsFake(() => [{ result: 1 }, { result: 2 }]);
+			stubGet.callsFake(() => [{ result: 1 }, { result: 2 }]);
 
 			const result = await mysql.get(dummyModel, params);
 
@@ -784,9 +343,7 @@ describe('MySQL module', function() {
 
 			testParams(params, originalParams);
 
-			stubResults.restore();
-
-			sandbox.stub(QueryBuilder.prototype, 'execute').callsFake(() => [{ count: 650 }]);
+			stubGet.callsFake(() => [{ count: 650 }]);
 
 			const resultTotals = await mysql.getTotals(dummyModel);
 
@@ -808,31 +365,20 @@ describe('MySQL module', function() {
 
 	describe('Remove methods', function() {
 
-		let stubFields;
-		let stubCall;
+		let stubRemove;
 
-		before(() => {
-
-			const fields = {};
-			['id', 'foo', 'date_created', 'date_modified'].forEach(field => { fields[field] = field; });
-
-			stubFields = sinon.stub(MySQL.prototype, '_getFields')
-				.returns(fields);
-
-			stubCall = sinon.stub(MySQL.prototype, '_call')
-				.returns(true);
+		beforeEach(() => {
+			const knexGetter = { raw: () => true };
+			sandbox.stub(MySQL.prototype, 'knex').get(() => knexGetter);
+			stubRemove = sandbox.stub(QueryBuilder.prototype, 'remove');
 		});
 
 		afterEach(() => {
-			stubCall.resetHistory();
+			sandbox.restore();
+			stubRemove.restore();
 		});
 
-		after(() => {
-			stubFields.restore();
-			stubCall.restore();
-		});
-
-		it('should return Error with no model', async() => {
+		it('should return Error with no model', async function() {
 
 			await assert.rejects(mysql.remove(), { code: MySQLError.codes.INVALID_MODEL });
 
@@ -840,40 +386,30 @@ describe('MySQL module', function() {
 
 		it('should throw when no filters as object given', async function() {
 
-			await assert.rejects(() => mysql.remove(dummyModel), MySQLError);
-
-			await Promise.all(
-				[1, 'foo', ['foo', 'bar'], false, {}]
-					.map(async data => assert.rejects(() => mysql.remove(dummyModel, data), MySQLError))
-			);
+			await assert.rejects(mysql.remove(dummyModel), MySQLError.codes.INVALID_DATA);
 
 		});
 
 		it('should remove when valid fields given', async function() {
 
-			await mysql.remove(dummyModel, {
-				foo: 'bar'
+			stubRemove.callsFake(() => [{ affectedRows: 1 }]);
+
+			const results = await mysql.remove(dummyModel, {
+				filters: { id: 1 }
 			});
 
-			const expectedQuery = sanitizeQuery(`
-				DELETE FROM ${fullTableName}
-				WHERE foo = :foo`);
-
-			assert.equal(sanitizeQuery(stubCall.args[0][0]), expectedQuery);
+			assert.equal(results, 1);
 		});
 
-		it('should remove when valids fields given but some invalid too', async() => {
-			await mysql.remove(dummyModel, {
-				foo: 'bar',
-				w: true
+		it('should return 0 if can not remove', async function() {
+
+			stubRemove.rejects();
+
+			const results = await mysql.remove(dummyModel, {
+				filters: { id: 1 }
 			});
 
-			const expectedQuery = sanitizeQuery(`
-				DELETE FROM ${fullTableName}
-				WHERE foo = :foo`);
-
-			assert.equal(sanitizeQuery(stubCall.args[0][0]), expectedQuery);
-
+			assert.equal(results, 0);
 		});
 	});
 

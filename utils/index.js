@@ -32,14 +32,17 @@ const Utils = {
 	},
 
 	/**
-	*	Convert all keys to camelCase from lower_dash
-	*	@param {object} The object to convert
+	* Convert all keys to camelCase from lower_dash
+	* @param {object} obj The object to convert
 	* @return {object} The modfied object
 	*/
 	convertKeysToCamelCase(obj) {
 		const result = {};
 
-		for(const [key, value] of Object.entries(obj)) {
+		if(typeof obj === 'number')
+			return obj;
+
+		for(const [key, value] of Object.entries({ ...obj })) {
 
 			const camelCaseKey = Utils.convertToCamelCase(key);
 

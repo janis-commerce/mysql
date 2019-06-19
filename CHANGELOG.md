@@ -13,5 +13,14 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - Tests
 
 ## [Unreleased]
+### Added
+- *"lib/"* folder into package.json files
+
+### Changed
+- Changed modules files folder into *"lib/"*
+- Use `Query Builder` Insert, Save, Update, Remove new functions.
+- 
+
 ### Removed
 - `Query Builder` moved to an independent package
+- `end` function.

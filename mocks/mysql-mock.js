@@ -35,7 +35,7 @@ const validQueryManager = {
 
 MySQL.createPool = () => {
 	return ({
-		getConnection: async() => ({
+		getConnection: async () => ({
 			connection: {
 				config: {}
 			},

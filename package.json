@@ -4,6 +4,7 @@
   "description": "",
   "main": "index.js",
   "scripts": {
+    "lint": "eslint index.js lib/ tests/",
     "test": "export TEST_ENV=true; mocha --exit -R nyan --recursive tests/",
     "watch-test": "export TEST_ENV=true; mocha --exit -R nyan -w --recursive tests/",
     "test-ci": "nyc --reporter=html --reporter=text mocha --recursive tests/",
@@ -32,6 +33,10 @@
     "mocha": "^5.2.0",
     "mock-require": "^3.0.3",
     "nyc": "^14.1.0",
-    "sinon": "^7.3.2"
-  }
+    "sinon": "^7.3.2",
+    "husky": "^2.4.1"
+  },
+  "files": [
+    "lib/"
+  ]
 }

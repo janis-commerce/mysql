@@ -1,5 +1,5 @@
 'use strict';
 
-const { MySQL } = require('./mysql');
+const { MySQL } = require('./lib');
 
 module.exports = MySQL;

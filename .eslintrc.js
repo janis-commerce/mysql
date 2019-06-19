@@ -69,8 +69,10 @@ module.exports = {
 			comments: 200
 		}],
 
-		'spaced-comment': ['error', 'always', {
-			exceptions: ['*']
+		'space-before-function-paren': ['error', {
+			'anonymous': 'never',
+			'named': 'never',
+			'asyncArrow': 'always'
 		}],
 
 		'newline-per-chained-call': ['error', {
