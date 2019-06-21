@@ -4,31 +4,44 @@ const assert = require('assert');
 
 const Utils = require('./../utils');
 
-/** Setup **/
+/** Setup * */
 
 /* eslint-disable prefer-arrow-callback */
 
 describe('Utils', function() {
 
-	describe('Should convert keys to CamelCase', function() {
-		const data = {
-			order_form_id: 'yes',
-			check_boolean: true,
-			check_int: 5,
-			status: true
-		};
+	describe('convertKeysToCamelCase', function() {
 
-		const result = Utils.convertKeysToCamelCase(data);
+		it('Should convert objects keys to CamelCase', function() {
 
-		assert.equal(result.orderFormId, 'yes');
-		assert.equal(result.checkBoolean, true);
-		assert.equal(result.checkInt, 5);
+			const data = {
+				order_form_id: 'yes',
+				check_boolean: true,
+				check_int: 5,
+				status: true
+			};
 
-		assert.equal(result.status, true);
+			const result = Utils.convertKeysToCamelCase(data);
 
-		assert.equal(result.order_form_id, undefined);
-		assert.equal(result.check_boolean, undefined);
-		assert.equal(result.check_int, undefined);
+			assert.equal(result.orderFormId, 'yes');
+			assert.equal(result.checkBoolean, true);
+			assert.equal(result.checkInt, 5);
+
+			assert.equal(result.status, true);
+
+			assert.equal(result.order_form_id, undefined);
+			assert.equal(result.check_boolean, undefined);
+			assert.equal(result.check_int, undefined);
+
+		});
+
+		it('Should no-convert if there is a number instead of object', function() {
+			const data = 11;
+
+			const result = Utils.convertKeysToCamelCase(data);
+
+			assert.equal(result, data);
+		});
 	});
 
 	describe('Should convert string to snake_case', function() {

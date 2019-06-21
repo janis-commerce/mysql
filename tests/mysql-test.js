@@ -66,16 +66,16 @@ describe('MySQL module', function() {
 				assert.equal(result, true);
 			});
 
-			it('should return false if try to insert an item that already exist', async function() {
+			it('should throw MySqlError if try to insert an item that already exist', async function() {
 
 				sandbox.stub(QueryBuilder.prototype, 'insert').rejects();
 
-				const result = await mysql.insert(dummyModel, {
+				const item = {
 					id: 1,
 					superhero: 'superman'
-				});
+				};
 
-				assert.equal(result, false);
+				await assert.rejects(mysql.insert(dummyModel, item), { code: MySQLError.codes.INVALID_INSERT });
 			});
 
 			it('should return true if try to save a new item', async function() {
@@ -199,21 +199,33 @@ describe('MySQL module', function() {
 			});
 
 			it('should return false if try to insert', async function() {
-				assert.equal(await mysql.insert(dummyModel, { id: 10, superhero: 'Green Goblin' }), false);
+				await assert.rejects(mysql.insert(dummyModel, { id: 10, superhero: 'Green Goblin' }), { code: MySQLError.codes.INVALID_INSERT });
 			});
 
 			it('should return false if try to save', async function() {
-				assert.equal(await mysql.save(dummyModel, { id: 10, superhero: 'Green Goblin' }), false);
+				await assert.rejects(mysql.save(dummyModel, { id: 10, superhero: 'Green Goblin' }), { code: MySQLError.codes.INVALID_SAVE });
 
 			});
 
 			it('should return 0 if try to update', async function() {
-				assert.equal(await mysql.update(dummyModel, { superhero: 'Red Goblin', filters: { id: { value_: 1 } } }), 0);
+				const item = {
+					superhero: 'Red Goblin',
+					filters: {
+						id: { value_: 1 }
+					}
+				};
+
+				await assert.rejects(mysql.update(dummyModel, item), { code: MySQLError.codes.INVALID_UPDATE });
 
 			});
 
 			it('should return 0 if try to multi-insert', async function() {
-				assert.equal(await mysql.multiInsert(dummyModel, [{ id: 10, superhero: 'Green Goblin' }, { id: 11, superhero: 'Red Goblin' }]), false);
+				const items = [
+					{ id: 10, superhero: 'Green Goblin' },
+					{ id: 11, superhero: 'Red Goblin' }
+				];
+
+				await assert.rejects(mysql.multiInsert(dummyModel, items), { code: MySQLError.codes.INVALID_MULTI_INSERT });
 
 			});
 		});
@@ -251,116 +263,164 @@ describe('MySQL module', function() {
 			});
 		});
 
+		context('when attempting to save/insert/update with no items or values', function() {
+
+			beforeEach(() => {
+				const knexGetter = { raw: () => true };
+				sandbox.stub(MySQL.prototype, 'knex').get(() => knexGetter);
+			});
+
+			afterEach(() => {
+				sandbox.restore();
+			});
+
+			it('should return MySqlError if try to insert', async function() {
+				await assert.rejects(mysql.insert(dummyModel), { code: MySQLError.codes.EMPTY_FIELDS });
+			});
+
+			it('should return MySqlError if try to save', async function() {
+				await assert.rejects(mysql.save(dummyModel), { code: MySQLError.codes.EMPTY_FIELDS });
+
+			});
+
+			it('should return MySqlError if try to update', async function() {
+				await assert.rejects(mysql.update(dummyModel), { code: MySQLError.codes.EMPTY_FIELDS });
+
+			});
+
+			it('should return MySqlError if try to multi-insert', async function() {
+				await assert.rejects(mysql.multiInsert(dummyModel,), { code: MySQLError.codes.EMPTY_FIELDS });
+
+			});
+		});
+
 	});
 
 	describe('Get Methods', function() {
 
-		let stubGet;
+		context('when try to get items with valid configuration', function() {
 
-		beforeEach(() => {
-			const knexGetter = { raw: () => true };
-			sandbox.stub(MySQL.prototype, 'knex').get(() => knexGetter);
-			stubGet = sandbox.stub(QueryBuilder.prototype, 'get');
-		});
+			let stubGet;
 
-		afterEach(() => {
-			sandbox.restore();
-			stubGet.restore();
-		});
+			beforeEach(() => {
+				const knexGetter = { raw: () => true };
+				sandbox.stub(MySQL.prototype, 'knex').get(() => knexGetter);
+				stubGet = sandbox.stub(QueryBuilder.prototype, 'get');
+			});
 
-		const testParams = (params, expectedParams) => {
-			assert.deepEqual(params, expectedParams, 'shouldn\'t modify ofiginal params');
-		};
+			afterEach(() => {
+				sandbox.restore();
+			});
 
-		it('Get Totals in empty Table, should return default values', async function() {
-
-			stubGet.callsFake(() => [{ count: 0 }]);
-
-			const totalExpected = {
-				page: 1,
-				pageSize: 500,
-				pages: 1,
-				total: 0
+			const testParams = (params, expectedParams) => {
+				assert.deepEqual(params, expectedParams, 'shouldn\'t modify ofiginal params');
 			};
 
-			assert.deepEqual(await mysql.getTotals(dummyModel), totalExpected);
-		});
+			it('should return default values getting totals with empty tables', async function() {
 
-		it('Should return empty results and totals with zero values', async function() {
+				stubGet.callsFake(() => [{ count: 0 }]);
 
-			const params = {};
+				const totalExpected = {
+					page: 1,
+					pageSize: 500,
+					pages: 1,
+					total: 0
+				};
 
-			stubGet.callsFake(() => []);
-
-			const result = await mysql.get(dummyModel, params);
-
-			assert.deepEqual(result, []);
-
-			const resultTotals = await mysql.getTotals(dummyModel);
-
-			assert.deepEqual(resultTotals, { total: 0, pages: 0 });
-
-			testParams(params, {});
-
-
-		});
-
-		it('Should return results and totals only with filters', async function() {
-
-			const originalParams = { someFilter: 'foo' };
-			const params = { ...originalParams };
-
-			stubGet.callsFake(() => [{ result: 1 }, { result: 2 }]);
-
-			const result = await mysql.get(dummyModel, params);
-
-			assert.deepEqual(result, [{ result: 1 }, { result: 2 }]);
-
-			testParams(params, originalParams);
-
-			stubGet.callsFake(() => [{ count: 650 }]);
-
-			const resultTotals = await mysql.getTotals(dummyModel);
-
-			assert.deepEqual(resultTotals, {
-				total: 650,
-				page: 1,
-				pageSize: 500,
-				pages: 2
+				assert.deepEqual(await mysql.getTotals(dummyModel), totalExpected);
 			});
-		});
 
-		it('Should return results and totals', async function() {
+			it('Should return empty results and totals with zero values', async function() {
 
-			const originalParams = { someFilter: 'foo', page: 4, limit: 10 };
-			const params = { ...originalParams };
+				const params = {};
 
-			stubGet.callsFake(() => [{ result: 1 }, { result: 2 }]);
+				stubGet.callsFake(() => []);
 
-			const result = await mysql.get(dummyModel, params);
+				const result = await mysql.get(dummyModel, params);
 
-			assert.deepEqual(result, [{ result: 1 }, { result: 2 }]);
+				assert.deepEqual(result, []);
 
-			testParams(params, originalParams);
+				const resultTotals = await mysql.getTotals(dummyModel);
 
-			stubGet.callsFake(() => [{ count: 650 }]);
+				assert.deepEqual(resultTotals, { total: 0, pages: 0 });
 
-			const resultTotals = await mysql.getTotals(dummyModel);
-
-			assert.deepEqual(resultTotals, {
-				total: 650,
-				page: 4,
-				pageSize: 10,
-				pages: 65
+				testParams(params, {});
 			});
+
+			it('Should return results and totals only with filters', async function() {
+
+				const originalParams = { someFilter: 'foo' };
+				const params = { ...originalParams };
+
+				stubGet.callsFake(() => [{ result: 1 }, { result: 2 }]);
+
+				const result = await mysql.get(dummyModel, params);
+
+				assert.deepEqual(result, [{ result: 1 }, { result: 2 }]);
+
+				testParams(params, originalParams);
+
+				stubGet.callsFake(() => [{ count: 650 }]);
+
+				const resultTotals = await mysql.getTotals(dummyModel);
+
+				assert.deepEqual(resultTotals, {
+					total: 650,
+					page: 1,
+					pageSize: 500,
+					pages: 2
+				});
+			});
+
+			it('Should return results and totals', async function() {
+
+				const originalParams = { someFilter: 'foo', page: 4, limit: 10 };
+				const params = { ...originalParams };
+
+				stubGet.callsFake(() => [{ result: 1 }, { result: 2 }]);
+
+				const result = await mysql.get(dummyModel, params);
+
+				assert.deepEqual(result, [{ result: 1 }, { result: 2 }]);
+
+				testParams(params, originalParams);
+
+				stubGet.callsFake(() => [{ count: 650 }]);
+
+				const resultTotals = await mysql.getTotals(dummyModel);
+
+				assert.deepEqual(resultTotals, {
+					total: 650,
+					page: 4,
+					pageSize: 10,
+					pages: 65
+				});
+			});
+
 		});
 
-		it('Should throws Error when try to get with no model', async function() {
-			await assert.rejects(mysql.get(), { code: MySQLError.codes.INVALID_MODEL });
+		context('when try to get items with invalid configuration', function() {
 
-			await assert.rejects(mysql.getTotals(), { code: MySQLError.codes.INVALID_MODEL });
+			afterEach(() => {
+				sandbox.restore();
+			});
+
+			it('should throw MySqlError if knex is invalid', async function() {
+
+				sandbox.stub(MySQL.prototype, 'knex').get(() => {});
+				await assert.rejects(mysql.get(dummyModel, {}), { code: MySQLError.codes.INVALID_GET });
+
+			});
+
+			it('should throws MySqlError when try to get with no model', async function() {
+
+				await assert.rejects(mysql.get(), { code: MySQLError.codes.INVALID_MODEL });
+				await assert.rejects(mysql.getTotals(), { code: MySQLError.codes.INVALID_MODEL });
+
+			});
 
 		});
+
 	});
 
 	describe('Remove methods', function() {
@@ -375,18 +435,17 @@ describe('MySQL module', function() {
 
 		afterEach(() => {
 			sandbox.restore();
-			stubRemove.restore();
 		});
 
-		it('should return Error with no model', async function() {
+		it('should throw MySqlError with no model', async function() {
 
 			await assert.rejects(mysql.remove(), { code: MySQLError.codes.INVALID_MODEL });
 
 		});
 
-		it('should throw when no filters as object given', async function() {
+		it('should throw MySqlError when no filters as object given', async function() {
 
-			await assert.rejects(mysql.remove(dummyModel), MySQLError.codes.INVALID_DATA);
+			await assert.rejects(mysql.remove(dummyModel), { code: MySQLError.codes.INVALID_DATA });
 
 		});
 
@@ -401,15 +460,15 @@ describe('MySQL module', function() {
 			assert.equal(results, 1);
 		});
 
-		it('should return 0 if can not remove', async function() {
+		it('should throw MySqlError if can not remove', async function() {
 
 			stubRemove.rejects();
 
-			const results = await mysql.remove(dummyModel, {
+			const params = {
 				filters: { id: 1 }
-			});
+			};
 
-			assert.equal(results, 0);
+			await assert.rejects(mysql.remove(dummyModel, params), { code: MySQLError.codes.INVALID_REMOVE });
 		});
 	});
 
