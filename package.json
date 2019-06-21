@@ -1,7 +1,7 @@
 {
   "name": "@janiscommerce/mysql",
   "version": "1.0.0",
-  "description": "",
+  "description": "Driver for MySQL Databse",
   "main": "index.js",
   "scripts": {
     "lint": "eslint index.js lib/ tests/",
@@ -37,6 +37,7 @@
     "husky": "^2.4.1"
   },
   "files": [
-    "lib/"
+    "lib/",
+    "utils"
   ]
 }

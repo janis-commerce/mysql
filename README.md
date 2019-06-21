@@ -1,49 +1,24 @@
-# MySql
+# mysql
 
 [![Build Status](https://travis-ci.org/janis-commerce/mysql.svg?branch=JCN-49-janis-mysql)](https://travis-ci.org/janis-commerce/mysql)
 [![Coverage Status](https://coveralls.io/repos/github/janis-commerce/mysql/badge.svg?branch=JCN-49-janis-mysql)](https://coveralls.io/github/janis-commerce/mysql?branch=JCN-49-janis-mysql)
+
+A Driver for **MySQL** Database.
+
+- - -
 
 ## Installation
 
 ```
 npm install @janiscommerce/mysql
 ```
+- - -
 
-## API
+## Configuration
 
-* `new MySQL(config)`
+The **TABLES** must be created before start using this driver.
 
-    MySQL driver Module. `config` object with the database configuration.
-
-* `save(model, item)`
-
-    Saved an item in the database. Returns the Row affected
-        - `model` a Model class, used to setup correctly the insertion.
-        - `item` the object to be saved.
-
-* `get(model, parametres)`
-
-    Search in the database and return a `Promise` with the results.
-        - `model` a Model class, used to get the correct search.
-        - `parametres` it's an `object` with the field and options to make the query.
-
-* `insert(model, values, allowUpserted)`
-
-    Insert or Update a Row. Returns the Row affected
-
-* `update(model, item)`
-
-    Update a row.
-
-* `multiInsert(model, items)`
-
-    Performs a multi insert.
-
-* `remove()`
-
-## Config
-
-The configuration object looks like:
+This driver use a configuration `object` with the database config data, it look like these :
 
 ```javascript
 
@@ -58,7 +33,330 @@ const config = {
 }
 
 ```
+- - -
+
+## API
+
+* `new MySQL(config)`, MySQL constructor, to start using it.
+    
+    - `config`: *type* `OBJECT`, the database configuration.
+
+* `insert(model, item)` **ASYNCHRONOUS**, Insert an individual object in the database. 
+    
+    - `model`: a Model instance with the *database*, *tables*, *fields*, *joins* and other data.
+    - `item`: *type* `OBJECT`, the object to be inserted.
+    - **Returns**, `boolean` if the object was inserted correctly returns `true`. 
+
+* `save(model, item)` **ASYNCHRONOUS**, Saved an individual object in the database. Duplicate Objects updates it.
+
+    - `model`: a Model instance with the *database*, *tables*, *fields*, *joins* and other data.
+    - `item`: *type* `OBJECT`,the object to be saved.
+    - **Returns**, `Promise` with `true` if the object was saved correctly.
+
+* `multiInsert(model, items)` **ASYNCHRONOUS**, Performs an Insert of multiple objects. Duplicate Objects updates it.
+
+    - `model`: a Model instance with the *database*, *tables*, *fields*, *joins* and other data.
+    - `items`: *type* `ARRAY`, the list of objects to be saved.
+    - **Returns**, `Promise` with `number` of the quantity of rows were updated correctly.
+
+* `update(model, parametres)` **ASYNCHRONOUS**, Update rows.
+
+    - `model`: a Model instance with the *database*, *tables*, *fields*, *joins* and other data.
+    - `parametres`: *type* `OBJECT`, with the following `keys` to make the changes:
+        * `fields`: *type* `object`, *key*: field to change, *value*: new value.
+        * `filters`: Learn [More](https://github.com/janis-commerce/query-builder/docs/Filters.md).
+    - **Returns**, `number` of the quantity of rows were updated correctly.
+
+
+* `get(model, parametres)` **ASYNCHRONOUS**, Search rows in the database.
+
+    - `model`: a Model instance with the *database*, *tables*, *fields*, *joins* and other data.
+    - `parametres`: *type* `OBJECT`, with the following `keys` to make the query:
+        * `fields`: Learn [More](https://github.com/janis-commerce/query-builder/docs/Fields.md).
+        * `filters`: Learn [More](https://github.com/janis-commerce/query-builder/docs/Filters.md).
+        * `joins`: Learn [More](https://github.com/janis-commerce/query-builder/docs/Joins.md).
+        * `order`: Learn [More](https://github.com/janis-commerce/query-builder/docs/Orders.md).
+        * `group`: Learn [More](https://github.com/janis-commerce/query-builder/docs/Groups.md).
+        * `limit`: Learn [More](https://github.com/janis-commerce/query-builder/docs/Pagination.md).
+        * *special functions*: Learn [More](https://github.com/janis-commerce/query-builder/docs/Special-functions.md).
+    - **Returns**, `Array` of `objects` of *rows* founds.
+
+
+* `remove(model, parametres)` **ASYNCHRONOUS**, Remove rows in the database.
+
+    - `model`: a Model instance with the *database*, *tables*, *fields*, *joins* and other data.
+    - `parametres`: *type* `OBJECT`, with the following `keys` to make the changes:
+        - `filters`: Learn [More](https://github.com/janis-commerce/query-builder/docs/Filters.md).
+        - `joins`: Learn [More](https://github.com/janis-commerce/query-builder/docs/Joins.md).
+    - **Returns**, `number` of the quantity of rows were removed correctly.
+
+
+- - -
+
+## Errors
+
+The errors are informed with a `MySQLError` with the proper message for each error.
+
+The codes are the following:
+
+|Code	|Description				|
+|-------|---------------------------|
+|1		|Invalid Model  			|
+|2		|Invalid Insert     		|
+|3		|Invalid Save               |
+|4		|Invalid Update	            |
+|5      |Invalid Multi-Insert       |
+|6      |Invalid Remove             |
+|7      |Empty Fields               |
 
 - - -
 
 ## Usage
+
+```javascript
+const Mysql = require('@janniscomercer/mysql');
+
+const config = {
+    host: 'localhost',
+    user: 'root',
+    password: '20192106',
+    database: 'fizzmod',
+    port: 3006,
+};
+
+// Initialize 
+// Table Already Created
+
+const mysql = new Mysql(config);
+
+// Some Model with the right setup to use
+// fields = id (primary key), name , genre, calification
+const movieModel = new movieModel(); 
+
+let movieResponse;
+let movieItem;
+let movieItems;
+
+// INSERT a new Item
+
+movieItem = {
+    id: 1,
+    name: 'Titanic',
+    genre: 'Drama',
+    calification: 2,
+    nation: 'EEUU' // this field will not be inserted
+};
+
+try {
+    movieResponse = await mysql.insert(movieModel, movieItem);
+    // Response: TRUE
+    console.log('Movie Saved'); // Print in Console
+} catch (error) {
+    console.log('These Movie can\'t be saved.');
+}
+
+// INSERT an Item that already exist
+
+movieItem = {
+    id: 1,
+    name: 'Titanic',
+    genre: 'Drama',
+    calification: 10
+};
+
+try {
+    // will throw error
+    movieResponse = await mysql.insert(movieModel, movieItem);
+    console.log('Movie Saved');
+
+} catch(error) {
+    
+    console.log('This Movie can\'t be saved.'); // Print in Console
+}
+
+// SAVE an Item that already exist
+
+movieItem = {
+    id: 1,
+    name: 'Titanic',
+    genre: 'Drama',
+    calification: 1
+};
+
+try {
+
+    movieResponse = await mysql.save(movieModel, movieItem);
+    // Update and Response: TRUE
+    console.log('Movie Saved'); // Print in Console
+
+} catch(error) {
+    
+    console.log('This Movie can\'t be saved.');
+}
+
+// SAVE an new Item
+
+movieItem = {
+    id: 2,
+    name: 'Lord of the Rings 1',
+    genre: 'Fantasy',
+    calification: 1
+};
+
+try {
+
+    movieResponse = await mysql.save(movieModel, movieItem);
+    // Insert and Response: TRUE
+    console.log('Movie Saved'); // Print in Console
+
+} catch(error) {
+    
+    console.log('This Movie can\'t be saved.');
+}
+
+// MULTI INSERT multiple Items
+
+movieItems = [
+    {
+        id: 3,
+        name: 'Lord of the Rings 2',
+        genre: 'Fantasy',
+        calification: 8
+    },
+    {
+        id: 4,
+        name: 'Avengers 3',
+        genre: 'Action',
+        calification: 9
+    },
+    {
+        id: 5,
+        name: 'Lord of the Rings 3',
+        genre: 'Fantasy',
+        calification: 9
+    },
+    {
+        id: 6,
+        name: 'Scream',
+        genre: 'Terror',
+        calification: 6
+    },
+    {
+        id: 2,
+        name: 'Lord of the Rings 1',
+        genre: 'Fantasy',
+        calification: 7
+    },
+    {
+        id: 7,
+        name: 'Sharkanado',
+        genre: 'Comedy',
+        calification: 3
+    }
+];
+
+try {
+
+    movieResponse = await mysql.multiInsert(movieModel, movieItem);
+    // insert 4 movies and update 1, 
+    // Response: 5, 
+    console.log('Movies Saved', movieResponse); // Print in Console
+
+} catch(error) {
+    
+    console.log('These Movie can\'t be saved.');
+}
+
+// MULTI INSERT multiple Items
+
+let params = {
+    fields: {
+        calification: 9
+    },
+    filters: {
+        genre: 'Fantasy'
+    }
+};
+
+try {
+
+    movieResponse = await mysql.update(movieModel, params);
+    // Response: 3
+    console.log('Movies Updated', movieResponse); // Print in Console
+
+} catch(error) {
+    
+    console.log('These Movie can\'t be update.');
+}
+
+// GET
+
+params = {};
+
+try {
+
+    movieResponse = await mysql.get(movieModel, params);
+    // Response: Array with All movies and his fields 
+    /*
+        [
+            { id: 1, name: 'Titanic', genre: 'Drama', calfication: 1, date_created: 1239218, date_modified: 1239918 },
+            { id: 2, name: 'Lord of the Rings 1', genre: 'Fantasy', calfication: 9, date_created: 1240000, date_modified: 1242000 },
+            ...
+            { id: 4, name: 'Avengers 3', genre: 'Action', calfication: 1, date_created: 1241000, date_modified: 1241000 },
+            ...
+        ]
+    */
+    console.log('Movies ', movieResponse); // Print in Console
+
+} catch(error) {
+    
+    console.log('These Movie can\'t be get.');
+}
+
+// GET only fields required and with filters
+
+params = {
+    fields: ['name'],
+    filters: {
+        genre: 'Fantasy'
+    }
+};
+
+try {
+
+    movieResponse = await mysql.get(movieModel, params);
+    // Response: Array with All movies with fields required and passed the filter
+    /*
+        [
+            { id: 2, name: 'Lord of the Rings 1', genre: 'Fantasy', calfication: 9, date_created: 1240000, date_modified: 1242000 },
+            { id: 3, name: 'Lord of the Rings 2', genre: 'Fantasy', calfication: 9, date_created: 1241000, date_modified: 1242000 },
+            { id: 5, name: 'Lord of the Rings 3', genre: 'Fantasy', calfication: 9, date_created: 1241000, date_modified: 1242000 }
+        ]
+    */
+    console.log('Movies ', movieResponse); // Print in Console
+
+} catch(error) {
+    
+    console.log('These Movie can\'t be get.');
+}
+
+// REMOVE items
+
+params = {
+    filters: {
+        genre: 'Terror'
+    }
+};
+
+try {
+
+    movieResponse = await mysql.remove(movieModel, params);
+    // Response: 1
+    console.log('Movies ', movieResponse); // Print in Console
+
+} catch(error) {
+    
+    console.log('These Movie can\'t be removed.');
+}
+
+```
