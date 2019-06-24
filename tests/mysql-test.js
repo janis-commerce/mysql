@@ -109,32 +109,32 @@ describe('MySQL module', function() {
 
 			it('should return number of rows affected if try to update using filters to match items', async function() {
 
+				const fields = { superhero: 'Mengano' };
+				const filters = {
+					id: { value: 10, type: 'lesser' }
+				};
+
 				sandbox.stub(QueryBuilder.prototype, 'update').callsFake(() => {
 					return 2;
 				});
 
-				const result = await mysql.update(dummyModel, {
-					superhero: 'Mengano',
-					filter: {
-						id: { value: 10, type: 'lesser' }
-					}
-				});
+				const result = await mysql.update(dummyModel, fields, filters);
 
 				assert.equal(result, 2);
 			});
 
 			it('should return 0 if try to update using filters don\'t match any item', async function() {
 
+				const fields = { superhero: 'Mengano' };
+				const filters = {
+					id: { value: 10, type: 'greater' }
+				};
+
 				sandbox.stub(QueryBuilder.prototype, 'update').callsFake(() => {
 					return 0;
 				});
 
-				const result = await mysql.update(dummyModel, {
-					superhero: 'Mengano',
-					filter: {
-						id: { value: 10, type: 'greater' }
-					}
-				});
+				const result = await mysql.update(dummyModel, fields, filters);
 
 				assert.equal(result, 0);
 			});
@@ -208,14 +208,12 @@ describe('MySQL module', function() {
 			});
 
 			it('should return 0 if try to update', async function() {
-				const item = {
-					superhero: 'Red Goblin',
-					filters: {
-						id: { value_: 1 }
-					}
+				const fields = { superhero: 'Red Goblin' };
+				const filters = {
+					id: { value_: 1 }
 				};
 
-				await assert.rejects(mysql.update(dummyModel, item), { code: MySQLError.codes.INVALID_UPDATE });
+				await assert.rejects(mysql.update(dummyModel, fields, filters), { code: MySQLError.codes.INVALID_UPDATE });
 
 			});
 
@@ -251,7 +249,10 @@ describe('MySQL module', function() {
 			});
 
 			it('should return MySqlError if try to update', async function() {
-				await assert.rejects(mysql.update(null, { superhero: 'Red Goblin', filters: { id: { value_: 1 } } }),
+				const fields = { superhero: 'Red Goblin' };
+				const filters = { id: { value_: 1 } };
+
+				await assert.rejects(mysql.update(null, fields, filters),
 					{ code: MySQLError.codes.INVALID_MODEL });
 
 			});
