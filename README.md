@@ -59,12 +59,11 @@ const config = {
     - `items`: *type* `ARRAY`, the list of objects to be saved.
     - **Returns**, `Promise` with `number` of the quantity of rows were updated correctly.
 
-* `update(model, parametres)` **ASYNCHRONOUS**, Update rows.
+* `update(model, values, filters)` **ASYNCHRONOUS**, Update rows.
 
     - `model`: a Model instance with the *database*, *tables*, *fields*, *joins* and other data.
-    - `parametres`: *type* `OBJECT`, with the following `keys` to make the changes:
-        * `fields`: *type* `object`, *key*: field to change, *value*: new value.
-        * `filters`: Learn [More](https://github.com/janis-commerce/query-builder/docs/Filters.md).
+    - `values`: *type* `object`, *key*: field to change, *value*: new value.
+    - `filters`: Learn [More](https://github.com/janis-commerce/query-builder/docs/Filters.md).
     - **Returns**, `number` of the quantity of rows were updated correctly.
 
 
