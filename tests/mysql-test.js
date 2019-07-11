@@ -11,29 +11,33 @@ const MySQL = require('./../index');
 
 const sandbox = sinon.createSandbox();
 
-describe('MySQL module', function() {
-
-	class Model {
-		getTable() {
-			return 'table';
-		}
-
-		addDbName(t) {
-			return t;
-		}
-
-		static get fields() {
-			return {
-				id: true,
-				superhero: true
-			};
-		}
+class Model {
+	getTable() {
+		return 'table';
 	}
 
-	const mysql = new MySQL({});
+	addDbName(t) {
+		return t;
+	}
 
-	const dummyModel = new Model();
-	dummyModel.dbname = 'dbname';
+	static get fields() {
+		return {
+			id: true,
+			superhero: true
+		};
+	}
+}
+
+describe('MySQL module', function() {
+
+	let mysql;
+	let dummyModel;
+
+	beforeEach(() => {
+		mysql = new MySQL({});
+		dummyModel = new Model();
+		dummyModel.dbname = 'dbname';
+	});
 
 	after(() => {
 		sandbox.restore();
