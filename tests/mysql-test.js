@@ -398,6 +398,31 @@ describe('MySQL module', function() {
 				});
 			});
 
+			it('Should return results and totals with max number of page if try to request a higher number', async function() {
+
+				const originalParams = { someFilter: 'foo', page: 74, limit: 10 };
+				const params = { ...originalParams };
+
+				stubGet.callsFake(() => [{ result: 1 }, { result: 2 }]);
+
+				const result = await mysql.get(dummyModel, params);
+
+				assert.deepEqual(result, [{ result: 1 }, { result: 2 }]);
+
+				testParams(params, originalParams);
+
+				stubGet.callsFake(() => [{ count: 650 }]);
+
+				const resultTotals = await mysql.getTotals(dummyModel);
+
+				assert.deepEqual(resultTotals, {
+					total: 650,
+					page: 65,
+					pageSize: 10,
+					pages: 65
+				});
+			});
+
 		});
 
 		context('when try to get items with invalid configuration', function() {
