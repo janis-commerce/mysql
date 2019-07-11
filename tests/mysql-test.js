@@ -12,9 +12,6 @@ const MySQL = require('./../index');
 const sandbox = sinon.createSandbox();
 
 class Model {
-	getTable() {
-		return 'table';
-	}
 
 	addDbName(t) {
 		return t;
@@ -36,7 +33,6 @@ describe('MySQL module', function() {
 	beforeEach(() => {
 		mysql = new MySQL({});
 		dummyModel = new Model();
-		dummyModel.dbname = 'dbname';
 	});
 
 	after(() => {
