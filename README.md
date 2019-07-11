@@ -113,7 +113,7 @@ The codes are the following:
 ## Usage
 
 ```javascript
-const Mysql = require('@janniscomercer/mysql');
+const Mysql = require('@janiscommerce/mysql');
 
 const config = {
     host: 'localhost',
