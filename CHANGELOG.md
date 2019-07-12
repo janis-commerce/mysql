@@ -19,7 +19,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Changed
 - Changed modules files folder into *"lib/"*
 - Use `Query Builder` Insert, Save, Update, Remove new functions.
-- 
+- moved `utils/` to `lib/`
+- Fixed links in `README.md`
 
 ### Removed
 - `Query Builder` moved to an independent package

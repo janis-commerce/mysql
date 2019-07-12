@@ -63,7 +63,7 @@ const config = {
 
     - `model`: a Model instance with the *database*, *tables*, *fields*, *joins* and other data.
     - `values`: *type* `object`, *key*: field to change, *value*: new value.
-    - `filters`: Learn [More](https://github.com/janis-commerce/query-builder/docs/Filters.md).
+    - `filters`: Learn [More](https://github.com/janis-commerce/query-builder/blob/master/docs/Filters.md).
     - **Returns**, `number` of the quantity of rows were updated correctly.
 
 
@@ -71,22 +71,25 @@ const config = {
 
     - `model`: a Model instance with the *database*, *tables*, *fields*, *joins* and other data.
     - `parametres`: *type* `OBJECT`, with the following `keys` to make the query:
-        * `fields`: Learn [More](https://github.com/janis-commerce/query-builder/docs/Fields.md).
-        * `filters`: Learn [More](https://github.com/janis-commerce/query-builder/docs/Filters.md).
-        * `joins`: Learn [More](https://github.com/janis-commerce/query-builder/docs/Joins.md).
-        * `order`: Learn [More](https://github.com/janis-commerce/query-builder/docs/Orders.md).
-        * `group`: Learn [More](https://github.com/janis-commerce/query-builder/docs/Groups.md).
-        * `limit`: Learn [More](https://github.com/janis-commerce/query-builder/docs/Pagination.md).
-        * *special functions*: Learn [More](https://github.com/janis-commerce/query-builder/docs/Special-functions.md).
+        * `fields`: Learn [More](https://github.com/janis-commerce/query-builder/blob/master/docs/Fields.md).
+        * `filters`: Learn [More](https://github.com/janis-commerce/query-builder/blob/master/docs/Filters.md).
+        * `joins`: Learn [More](https://github.com/janis-commerce/query-builder/blob/master/docs/Joins.md).
+        * `order`: Learn [More](https://github.com/janis-commerce/query-builder/blob/master/docs/Orders.md).
+        * `group`: Learn [More](https://github.com/janis-commerce/query-builder/blob/master/docs/Groups.md).
+        * `limit`: Learn [More](https://github.com/janis-commerce/query-builder/blob/master/docs/Pagination.md).
+        * *special functions*: Learn [More](https://github.com/janis-commerce/query-builder/blob/master/docs/Special-functions.md).
     - **Returns**, `Array` of `objects` of *rows* founds.
 
+* `getTotals(model)` **ASYNCHRONOUS**, Get the totals of the items from the latest `get` operation with pagination.
+    - `model`: a Model instance with the *database*, *tables*, *fields*, *joins* and other data.
+    - **Returns**, `Object` with the total count, page size, pages and selected page.
 
 * `remove(model, parametres)` **ASYNCHRONOUS**, Remove rows in the database.
 
     - `model`: a Model instance with the *database*, *tables*, *fields*, *joins* and other data.
     - `parametres`: *type* `OBJECT`, with the following `keys` to make the changes:
-        - `filters`: Learn [More](https://github.com/janis-commerce/query-builder/docs/Filters.md).
-        - `joins`: Learn [More](https://github.com/janis-commerce/query-builder/docs/Joins.md).
+        - `filters`: Learn [More](https://github.com/janis-commerce/query-builder/blob/master/docs/Filters.md).
+        - `joins`: Learn [More](https://github.com/janis-commerce/query-builder/blob/master/docs/Joins.md).
     - **Returns**, `number` of the quantity of rows were removed correctly.
 
 
@@ -305,6 +308,18 @@ try {
             ...
         ]
     */
+
+   // getTotals
+   const totals = await mysql.getTotals(movieModel);
+
+   /* Example return
+      {
+         page: 1,
+         limit: 500,
+         pages: 1,
+         total: 7
+      }
+   */
     console.log('Movies ', movieResponse); // Print in Console
 
 } catch(error) {
