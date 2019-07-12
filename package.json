@@ -37,7 +37,6 @@
     "husky": "^2.4.1"
   },
   "files": [
-    "lib/",
-    "utils"
+    "lib/"
   ]
 }
