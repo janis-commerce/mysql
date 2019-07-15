@@ -1,7 +1,7 @@
 # mysql
 
-[![Build Status](https://travis-ci.org/janis-commerce/mysql.svg?branch=JCN-49-janis-mysql)](https://travis-ci.org/janis-commerce/mysql)
-[![Coverage Status](https://coveralls.io/repos/github/janis-commerce/mysql/badge.svg?branch=JCN-49-janis-mysql)](https://coveralls.io/github/janis-commerce/mysql?branch=JCN-49-janis-mysql)
+[![Build Status](https://travis-ci.org/janis-commerce/mysql.svg?branch=master)](https://travis-ci.org/janis-commerce/mysql)
+[![Coverage Status](https://coveralls.io/repos/github/janis-commerce/mysql/badge.svg?branch=master)](https://coveralls.io/github/janis-commerce/mysql?branch=master)
 
 A Driver for **MySQL** Database.
 
@@ -24,7 +24,7 @@ This driver use a configuration `object` with the database config data, it look 
 
 const config = {
     host: 'someHost', // host name where the database is connected
-    user: 'yourUser', // username 
+    user: 'yourUser', // username
     password: 'yourPassword', // password
     database: 'your_database_name', // the database name, could not exist
     port: 3006, // the port where the database is connected
@@ -38,14 +38,14 @@ const config = {
 ## API
 
 * `new MySQL(config)`, MySQL constructor, to start using it.
-    
+
     - `config`: *type* `OBJECT`, the database configuration.
 
-* `insert(model, item)` **ASYNCHRONOUS**, Insert an individual object in the database. 
-    
+* `insert(model, item)` **ASYNCHRONOUS**, Insert an individual object in the database.
+
     - `model`: a Model instance with the *database*, *tables*, *fields*, *joins* and other data.
     - `item`: *type* `OBJECT`, the object to be inserted.
-    - **Returns**, `boolean` if the object was inserted correctly returns `true`. 
+    - **Returns**, `boolean` if the object was inserted correctly returns `true`.
 
 * `save(model, item)` **ASYNCHRONOUS**, Saved an individual object in the database. Duplicate Objects updates it.
 
@@ -126,14 +126,14 @@ const config = {
     port: 3006,
 };
 
-// Initialize 
+// Initialize
 // Table Already Created
 
 const mysql = new Mysql(config);
 
 // Some Model with the right setup to use
 // fields = id (primary key), name , genre, calification
-const movieModel = new movieModel(); 
+const movieModel = new movieModel();
 
 let movieResponse;
 let movieItem;
@@ -172,7 +172,7 @@ try {
     console.log('Movie Saved');
 
 } catch(error) {
-    
+
     console.log('This Movie can\'t be saved.'); // Print in Console
 }
 
@@ -192,7 +192,7 @@ try {
     console.log('Movie Saved'); // Print in Console
 
 } catch(error) {
-    
+
     console.log('This Movie can\'t be saved.');
 }
 
@@ -212,7 +212,7 @@ try {
     console.log('Movie Saved'); // Print in Console
 
 } catch(error) {
-    
+
     console.log('This Movie can\'t be saved.');
 }
 
@@ -260,12 +260,12 @@ movieItems = [
 try {
 
     movieResponse = await mysql.multiInsert(movieModel, movieItem);
-    // insert 4 movies and update 1, 
-    // Response: 5, 
+    // insert 4 movies and update 1,
+    // Response: 5,
     console.log('Movies Saved', movieResponse); // Print in Console
 
 } catch(error) {
-    
+
     console.log('These Movie can\'t be saved.');
 }
 
@@ -287,7 +287,7 @@ try {
     console.log('Movies Updated', movieResponse); // Print in Console
 
 } catch(error) {
-    
+
     console.log('These Movie can\'t be update.');
 }
 
@@ -298,7 +298,7 @@ params = {};
 try {
 
     movieResponse = await mysql.get(movieModel, params);
-    // Response: Array with All movies and his fields 
+    // Response: Array with All movies and his fields
     /*
         [
             { id: 1, name: 'Titanic', genre: 'Drama', calfication: 1, date_created: 1239218, date_modified: 1239918 },
@@ -323,7 +323,7 @@ try {
     console.log('Movies ', movieResponse); // Print in Console
 
 } catch(error) {
-    
+
     console.log('These Movie can\'t be get.');
 }
 
@@ -350,7 +350,7 @@ try {
     console.log('Movies ', movieResponse); // Print in Console
 
 } catch(error) {
-    
+
     console.log('These Movie can\'t be get.');
 }
 
@@ -369,7 +369,7 @@ try {
     console.log('Movies ', movieResponse); // Print in Console
 
 } catch(error) {
-    
+
     console.log('These Movie can\'t be removed.');
 }
 
