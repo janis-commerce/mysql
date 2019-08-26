@@ -51,7 +51,7 @@ const config = {
 
     - `model`: a Model instance with the *database*, *tables*, *fields*, *joins* and other data.
     - `item`: *type* `OBJECT`,the object to be saved.
-    - **Returns**, `Promise` with `true` if the object was saved correctly.
+    - **Returns**, `ID` of the object inserted / updated.
 
 * `multiInsert(model, items)` **ASYNCHRONOUS**, Performs an Insert of multiple objects. Duplicate Objects updates it.
 
@@ -151,7 +151,7 @@ movieItem = {
 
 try {
     movieResponse = await mysql.insert(movieModel, movieItem);
-    // Response: TRUE
+    // Response: 1
     console.log('Movie Saved'); // Print in Console
 } catch (error) {
     console.log('These Movie can\'t be saved.');
@@ -208,7 +208,7 @@ movieItem = {
 try {
 
     movieResponse = await mysql.save(movieModel, movieItem);
-    // Insert and Response: TRUE
+    // Insert and Response: 2
     console.log('Movie Saved'); // Print in Console
 
 } catch(error) {

@@ -7,6 +7,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ## Unreleased
 ### Changed
 - `insert` returns ID inserted.
+- `save` returns ID inserted / updated.
 
 ## [1.3.2] - 2019-08-08
 ### Fixed
