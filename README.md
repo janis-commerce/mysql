@@ -45,7 +45,7 @@ const config = {
 
     - `model`: a Model instance with the *database*, *tables*, *fields*, *joins* and other data.
     - `item`: *type* `OBJECT`, the object to be inserted.
-    - **Returns**, `boolean` if the object was inserted correctly returns `true`.
+    - **Returns**, `ID` of the object inserted.
 
 * `save(model, item)` **ASYNCHRONOUS**, Saved an individual object in the database. Duplicate Objects updates it.
 

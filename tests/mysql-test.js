@@ -52,18 +52,53 @@ describe('MySQL module', function() {
 				sandbox.restore();
 			});
 
-			it('should return true if try to insert a new Item', async function() {
+			it('should return ID if try to insert a new Item with no Auto-Incremental ID', async function() {
 
-				sandbox.stub(QueryBuilder.prototype, 'insert').callsFake(() => {
-					return [0];
-				});
-
-				const result = await mysql.insert(dummyModel, {
+				const item = {
 					id: 1,
 					superhero: 'superman'
+				};
+
+				sandbox.stub(QueryBuilder.prototype, 'insert').callsFake(() => {
+					return [0]; // Knex return this if no auto-incremental ID
 				});
 
-				assert.equal(result, true);
+				const result = await mysql.insert(dummyModel, item);
+
+				assert.equal(result, item.id);
+			});
+
+			it('should return ID if try to insert a new Item with Auto-Incremental ID', async function() {
+
+				const itemIdGenerated = 10;
+
+				const item = {
+					superhero: 'supergirl'
+				};
+
+				sandbox.stub(QueryBuilder.prototype, 'insert').callsFake(() => {
+					return [itemIdGenerated]; // Knex return this if no auto-incremental ID
+				});
+
+				const result = await mysql.insert(dummyModel, item);
+
+				assert.equal(result, itemIdGenerated);
+			});
+
+			it('should return ID if try to insert a new Item which has ID with Auto-Incremental ID', async function() {
+
+				const item = {
+					id: 20,
+					superhero: 'Wolverine'
+				};
+
+				sandbox.stub(QueryBuilder.prototype, 'insert').callsFake(() => {
+					return [item.id]; // Knex return this if no auto-incremental ID
+				});
+
+				const result = await mysql.insert(dummyModel, item);
+
+				assert.equal(result, item.id);
 			});
 
 			it('should throw MySqlError if try to insert an item that already exist', async function() {
