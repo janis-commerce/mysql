@@ -52,18 +52,53 @@ describe('MySQL module', function() {
 				sandbox.restore();
 			});
 
-			it('should return true if try to insert a new Item', async function() {
+			it('should return ID if try to insert a new Item with no Auto-Incremental ID', async function() {
 
-				sandbox.stub(QueryBuilder.prototype, 'insert').callsFake(() => {
-					return [0];
-				});
-
-				const result = await mysql.insert(dummyModel, {
+				const item = {
 					id: 1,
 					superhero: 'superman'
+				};
+
+				sandbox.stub(QueryBuilder.prototype, 'insert').callsFake(() => {
+					return [0]; // Knex return this if no auto-incremental ID
 				});
 
-				assert.equal(result, true);
+				const result = await mysql.insert(dummyModel, item);
+
+				assert.strictEqual(result, item.id);
+			});
+
+			it('should return ID if try to insert a new Item with Auto-Incremental ID', async function() {
+
+				const itemIdGenerated = 10;
+
+				const item = {
+					superhero: 'supergirl'
+				};
+
+				sandbox.stub(QueryBuilder.prototype, 'insert').callsFake(() => {
+					return [itemIdGenerated]; // Knex return this if no auto-incremental ID
+				});
+
+				const result = await mysql.insert(dummyModel, item);
+
+				assert.strictEqual(result, itemIdGenerated);
+			});
+
+			it('should return ID if try to insert a new Item which has ID with Auto-Incremental ID', async function() {
+
+				const item = {
+					id: 20,
+					superhero: 'Wolverine'
+				};
+
+				sandbox.stub(QueryBuilder.prototype, 'insert').callsFake(() => {
+					return [item.id]; // Knex return this if no auto-incremental ID
+				});
+
+				const result = await mysql.insert(dummyModel, item);
+
+				assert.strictEqual(result, item.id);
 			});
 
 			it('should throw MySqlError if try to insert an item that already exist', async function() {
@@ -78,24 +113,48 @@ describe('MySQL module', function() {
 				await assert.rejects(mysql.insert(dummyModel, item), { code: MySQLError.codes.INVALID_INSERT });
 			});
 
-			it('should return true if try to save a new item', async function() {
+			it('should return ID if try to save a new item with ID no auto-incremental', async function() {
+
+				const item = {
+					id: 2,
+					superhero: 'batman'
+				};
 
 				sandbox.stub(QueryBuilder.prototype, 'save').callsFake(() => {
 					return [{ affectedRows: 1, insertId: 0 }];
 				});
 
-				const result = await mysql.save(dummyModel, {
-					id: 2,
-					superhero: 'batman'
-				});
+				const result = await mysql.save(dummyModel, item);
 
-				assert.equal(result, true);
+				assert.strictEqual(result, item.id);
 			});
 
-			it('should return true if try to save an old item', async function() {
+			it('should return ID if try to save a new item with ID auto-incremental', async function() {
+
+				const itemIDGenerated = 2;
+
+				const item = {
+					superhero: 'batman'
+				};
 
 				sandbox.stub(QueryBuilder.prototype, 'save').callsFake(() => {
-					return [{ affectedRows: 2 }];
+					return [{ affectedRows: 1, insertId: itemIDGenerated }];
+				});
+
+				const result = await mysql.save(dummyModel, item);
+
+				assert.strictEqual(result, itemIDGenerated);
+			});
+
+			it('should return ID if try to save an existing item', async function() {
+
+				const item = {
+					id: 1,
+					superhero: 'hulk'
+				};
+
+				sandbox.stub(QueryBuilder.prototype, 'save').callsFake(() => {
+					return [{ affectedRows: 2, insertId: item.id }];
 				});
 
 				const result = await mysql.save(dummyModel, {
@@ -103,7 +162,7 @@ describe('MySQL module', function() {
 					superhero: 'hulk'
 				});
 
-				assert.equal(result, true);
+				assert.strictEqual(result, item.id);
 			});
 
 
@@ -120,7 +179,7 @@ describe('MySQL module', function() {
 
 				const result = await mysql.update(dummyModel, fields, filters);
 
-				assert.equal(result, 2);
+				assert.strictEqual(result, 2);
 			});
 
 			it('should return 0 if try to update using filters don\'t match any item', async function() {
@@ -136,7 +195,7 @@ describe('MySQL module', function() {
 
 				const result = await mysql.update(dummyModel, fields, filters);
 
-				assert.equal(result, 0);
+				assert.strictEqual(result, 0);
 			});
 
 			it('should return 1 if try to multi-Insert a new Item', async function() {
@@ -151,7 +210,7 @@ describe('MySQL module', function() {
 				}]);
 
 
-				assert.equal(result, 1);
+				assert.strictEqual(result, 1);
 			});
 
 			it('should return the quantity of new items as rows affected if try to multi-Insert new Items', async function() {
@@ -167,7 +226,7 @@ describe('MySQL module', function() {
 				]);
 
 
-				assert.equal(result, 3);
+				assert.strictEqual(result, 3);
 			});
 
 			it('should return the double of quantity of new items as rows affected if try to multi-Insert Items which already exist', async function() {
@@ -182,7 +241,7 @@ describe('MySQL module', function() {
 				]);
 
 
-				assert.equal(result, 4);
+				assert.strictEqual(result, 4);
 			});
 
 		});
@@ -314,7 +373,7 @@ describe('MySQL module', function() {
 			});
 
 			const testParams = (params, expectedParams) => {
-				assert.deepEqual(params, expectedParams, 'shouldn\'t modify ofiginal params');
+				assert.deepStrictEqual(params, expectedParams, 'shouldn\'t modify ofiginal params');
 			};
 
 			it('should return default values getting totals with empty tables', async function() {
@@ -328,7 +387,7 @@ describe('MySQL module', function() {
 					total: 0
 				};
 
-				assert.deepEqual(await mysql.getTotals(dummyModel), totalExpected);
+				assert.deepStrictEqual(await mysql.getTotals(dummyModel), totalExpected);
 			});
 
 			it('Should return empty results and totals with zero values', async function() {
@@ -339,11 +398,11 @@ describe('MySQL module', function() {
 
 				const result = await mysql.get(dummyModel, params);
 
-				assert.deepEqual(result, []);
+				assert.deepStrictEqual(result, []);
 
 				const resultTotals = await mysql.getTotals(dummyModel);
 
-				assert.deepEqual(resultTotals, { total: 0, pages: 0 });
+				assert.deepStrictEqual(resultTotals, { total: 0, pages: 0 });
 
 				testParams(params, {});
 			});
@@ -357,7 +416,7 @@ describe('MySQL module', function() {
 
 				const result = await mysql.get(dummyModel, params);
 
-				assert.deepEqual(result, [{ result: 1 }, { result: 2 }]);
+				assert.deepStrictEqual(result, [{ result: 1 }, { result: 2 }]);
 
 				testParams(params, originalParams);
 
@@ -365,7 +424,7 @@ describe('MySQL module', function() {
 
 				const resultTotals = await mysql.getTotals(dummyModel);
 
-				assert.deepEqual(resultTotals, {
+				assert.deepStrictEqual(resultTotals, {
 					total: 650,
 					page: 1,
 					pageSize: 500,
@@ -382,7 +441,7 @@ describe('MySQL module', function() {
 
 				const result = await mysql.get(dummyModel, params);
 
-				assert.deepEqual(result, [{ result: 1 }, { result: 2 }]);
+				assert.deepStrictEqual(result, [{ result: 1 }, { result: 2 }]);
 
 				testParams(params, originalParams);
 
@@ -390,7 +449,7 @@ describe('MySQL module', function() {
 
 				const resultTotals = await mysql.getTotals(dummyModel);
 
-				assert.deepEqual(resultTotals, {
+				assert.deepStrictEqual(resultTotals, {
 					total: 650,
 					page: 4,
 					pageSize: 10,
@@ -407,7 +466,7 @@ describe('MySQL module', function() {
 
 				const result = await mysql.get(dummyModel, params);
 
-				assert.deepEqual(result, [{ result: 1 }, { result: 2 }]);
+				assert.deepStrictEqual(result, [{ result: 1 }, { result: 2 }]);
 
 				testParams(params, originalParams);
 
@@ -415,7 +474,7 @@ describe('MySQL module', function() {
 
 				const resultTotals = await mysql.getTotals(dummyModel);
 
-				assert.deepEqual(resultTotals, {
+				assert.deepStrictEqual(resultTotals, {
 					total: 650,
 					page: 65,
 					pageSize: 10,
@@ -483,7 +542,7 @@ describe('MySQL module', function() {
 				filters: { id: 1 }
 			});
 
-			assert.equal(results, 1);
+			assert.strictEqual(results, 1);
 		});
 
 		it('should throw MySqlError if can not remove', async function() {
