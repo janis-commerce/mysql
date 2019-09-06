@@ -6,6 +6,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## Unreleased
 
+## [1.3.4] - 2019-09-06
+### Changed
+- Updated `@janiscommerce/query-builder` version
+
 ## [1.3.3] - 2019-08-28
 ### Changed
 - Updated `@janiscommerce/query-builder` version
