@@ -19,10 +19,6 @@ describe('Config Validator', () => {
 		it('Should throw Error when config is an array', () => {
 			assert.throws(() => ConfigValidator.validate(['config']), { code: MySQLConfigError.codes.INVALID_CONFIG });
 		});
-
-		it('Should throw Error when config is not an object', () => {
-			assert.throws(() => ConfigValidator.validate('config'), { code: MySQLConfigError.codes.INVALID_CONFIG });
-		});
 	});
 
 	context('when config has a wrong type value', () => {
