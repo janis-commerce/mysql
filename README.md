@@ -19,17 +19,28 @@ npm install @janiscommerce/mysql
 The **TABLES** must be created before start using this driver.
 
 This driver use a configuration `object` with the database config data, it look like these :
+Every field is *optional*. 
+
+* `host`: `[String]` Host name where the database is connected. *Default*: "localhost"
+* `user`: `[String]` Username *Default*: "root"
+* `password`: `[String]` User's Password. *Default*: ""
+* `database`: `[String]` Database name. *Default*: `null`
+* `port`: `[String]` Port where the database is connected. *Default*: 3306
+* `connectionLimit`: `[String]`  A connection limit. *Default*: 500
+* `prefix`: `[String]` if you use some prefix. *Default*: ""
+
+If some Fields has the wrong type will be thrown a `MySQLConfigError`.
 
 ```javascript
 
 const config = {
-    host: 'someHost', // host name where the database is connected
-    user: 'yourUser', // username
-    password: 'yourPassword', // password
-    database: 'your_database_name', // the database name, could not exist
-    port: 3006, // the port where the database is connected
-    connectionLimit: 5000, // A connection limit, 5000 by default
-    prefix: 'yourPrefix' // if you use some prefix, could not exist
+    host: 'someHost', 
+    user: 'yourUser', 
+    password: 'yourPassword', 
+    database: 'your_database_name', 
+    port: 3006, 
+    connectionLimit: 5000, 
+    prefix: 'yourPrefix' 
 }
 
 ```
@@ -110,6 +121,15 @@ The codes are the following:
 |5      |Invalid Multi-Insert       |
 |6      |Invalid Remove             |
 |7      |Empty Fields               |
+
+The errors in configs are informed with a `MySQLConfigError` with the proper message for each error.
+
+The codes are the following:
+
+|Code	|Description				|
+|-------|---------------------------|
+|1		|Invalid Config  			|
+|2		|Invalid Settings     		|
 
 - - -
 
