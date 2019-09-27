@@ -555,6 +555,27 @@ describe('MySQL module', function() {
 
 			await assert.rejects(mysql.remove(dummyModel, params), { code: MySQLError.codes.INVALID_REMOVE });
 		});
+
+		it('should call remove() method when multiRemove is called', async function() {
+			stubRemove.callsFake(() => [{ affectedRows: 1 }]);
+
+			const results = await mysql.multiRemove(dummyModel, {
+				filters: { id: 1 }
+			});
+
+			assert.strictEqual(results, 1);
+			sandbox.assert.calledOnce(stubRemove);
+		});
+
+		it('should throw when remove() rejects when mutliRemove is called', async function() {
+			stubRemove.rejects();
+
+			const params = {
+				filters: { id: 1 }
+			};
+
+			await assert.rejects(mysql.multiRemove(dummyModel, params), { code: MySQLError.codes.INVALID_REMOVE });
+		});
 	});
 
 });
