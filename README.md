@@ -106,7 +106,7 @@ const config = {
 * `multiRemove(model, parametres)` **ASYNCHRONOUS**, Remove rows in the database.
 
     - `model`: a Model instance with the *database*, *tables*, *fields*, *joins* and other data.
-    - `parametres`: *type* `OBJECT`, with the following `keys` to make the changes:
+    - `parametres`: *type* `ARRAY`, with the following `keys` to make the changes:
         - `filters`: Learn [More](https://github.com/janis-commerce/query-builder/blob/master/docs/Filters.md).
         - `joins`: Learn [More](https://github.com/janis-commerce/query-builder/blob/master/docs/Joins.md).
     - **Returns**, `number` of the quantity of rows were removed correctly.
