@@ -555,26 +555,54 @@ describe('MySQL module', function() {
 
 			await assert.rejects(mysql.remove(dummyModel, params), { code: MySQLError.codes.INVALID_REMOVE });
 		});
+	});
+
+	describe('multiRemove()', () => {
+
+		let stubRemove;
+
+		beforeEach(() => {
+			const knexGetter = { raw: () => true };
+			sandbox.stub(MySQL.prototype, 'knex').get(() => knexGetter);
+			stubRemove = sandbox.stub(QueryBuilder.prototype, 'remove');
+		});
+
+		afterEach(() => {
+			sandbox.restore();
+		});
 
 		it('should call remove() method when multiRemove is called', async function() {
 			stubRemove.callsFake(() => [{ affectedRows: 1 }]);
 
-			const results = await mysql.multiRemove(dummyModel, {
-				filters: { id: 1 }
-			});
+			const results = await mysql.multiRemove(dummyModel, [
+				{ filters: { id: 1 } },
+				{ filters: { id: 2 } }
+			]);
 
-			assert.strictEqual(results, 1);
-			sandbox.assert.calledOnce(stubRemove);
+			assert.deepStrictEqual(results, 2);
+			sandbox.assert.calledTwice(stubRemove);
 		});
 
 		it('should throw when remove() rejects when mutliRemove is called', async function() {
 			stubRemove.rejects();
 
-			const params = {
+			const params = [{
 				filters: { id: 1 }
-			};
+			}];
 
 			await assert.rejects(mysql.multiRemove(dummyModel, params), { code: MySQLError.codes.INVALID_REMOVE });
+		});
+
+		it('should throw MySqlError with no model', async function() {
+
+			await assert.rejects(mysql.multiRemove(), { code: MySQLError.codes.INVALID_MODEL });
+
+		});
+
+		it('should throw MySqlError when no filters as array given', async function() {
+
+			await assert.rejects(mysql.multiRemove(dummyModel, {}), { code: MySQLError.codes.INVALID_DATA });
+
 		});
 	});
 
