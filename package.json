@@ -22,7 +22,7 @@
   "homepage": "https://github.com/janis-commerce/mysql#readme",
   "dependencies": {
     "@janiscommerce/query-builder": "^1.3.6",
-    "knex": "^0.16.5",
+    "knex": "^0.19.5",
     "lllog": "^1.1.2",
     "mysql2": "1.5.2"
   },
