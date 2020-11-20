@@ -1,7 +1,8 @@
 # mysql
 
-[![Build Status](https://travis-ci.org/janis-commerce/mysql.svg?branch=master)](https://travis-ci.org/janis-commerce/mysql)
+![Build Status](https://github.com/janis-commerce/mysql/workflows/Build%20Status/badge.svg)
 [![Coverage Status](https://coveralls.io/repos/github/janis-commerce/mysql/badge.svg?branch=master)](https://coveralls.io/github/janis-commerce/mysql?branch=master)
+[![npm version](https://badge.fury.io/js/%40janiscommerce%2Fmysql.svg)](https://www.npmjs.com/package/@janiscommerce/mysql)
 
 A Driver for **MySQL** Database.
 
@@ -19,7 +20,7 @@ npm install @janiscommerce/mysql
 The **TABLES** must be created before start using this driver.
 
 This driver use a configuration `object` with the database config data, it look like these :
-Every field is *optional*. 
+Every field is *optional*.
 
 * `host`: `[String]` Host name where the database is connected. *Default*: "localhost"
 * `user`: `[String]` Username *Default*: "root"
@@ -34,13 +35,13 @@ If some Fields has the wrong type will be thrown a `MySQLConfigError`.
 ```javascript
 
 const config = {
-    host: 'someHost', 
-    user: 'yourUser', 
-    password: 'yourPassword', 
-    database: 'your_database_name', 
-    port: 3006, 
-    connectionLimit: 5000, 
-    prefix: 'yourPrefix' 
+    host: 'someHost',
+    user: 'yourUser',
+    password: 'yourPassword',
+    database: 'your_database_name',
+    port: 3006,
+    connectionLimit: 5000,
+    prefix: 'yourPrefix'
 }
 
 ```
