@@ -7,6 +7,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ## [1.5.3] - 2020-11-20
 ### Changed
 - Updated mysql2 and knex dependencies
+- add github actions
 
 ## [1.5.2] - 2019-11-13
 ### Changed
