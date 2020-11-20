@@ -1,6 +1,6 @@
 {
   "name": "@janiscommerce/mysql",
-  "version": "1.5.2",
+  "version": "1.5.3",
   "description": "Driver for MySQL Databse",
   "main": "index.js",
   "scripts": {
