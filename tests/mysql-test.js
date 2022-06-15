@@ -4,7 +4,8 @@ const assert = require('assert');
 const sinon = require('sinon');
 const QueryBuilder = require('@janiscommerce/query-builder');
 
-const { MySQL, MySQLError } = require('../');
+const MySQL = require('../lib/mysql');
+const MySQLError = require('../lib/mysql-error');
 
 /* eslint-disable prefer-arrow-callback */
 

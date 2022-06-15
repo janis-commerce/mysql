@@ -2,7 +2,8 @@
 
 const assert = require('assert');
 
-const { MySQLConfigError, ConfigValidator } = require('./../lib');
+const MySQLConfigError = require('../lib/mysql-config-error');
+const ConfigValidator = require('../lib/config-validator');
 
 describe('Config Validator', () => {
 
