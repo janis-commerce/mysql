@@ -27,7 +27,6 @@ describe('Config Validator', () => {
 			{ port: '1234' },
 			{ database: { db: 'myDB' } },
 			{ connectionLimit: '1000' },
-			{ prefix: 1234 },
 			{ user: ['root'] },
 			{ password: { root: '12345678' } }
 		];
@@ -49,8 +48,7 @@ describe('Config Validator', () => {
 			password: 'root1234',
 			database: 'someDB',
 			port: 30015,
-			connectionLimit: 5000,
-			prefix: 'somePrefix'
+			connectionLimit: 5000
 		};
 
 

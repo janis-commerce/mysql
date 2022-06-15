@@ -22,6 +22,10 @@ module.exports = {
 		sourceType: 'script'
 	},
 
+	settings: {
+		'import/core-modules': ['aws-sdk', 'lodash', 'yamljs', 'openapi-schema-validator']
+	},
+
 	rules: {
 		'operator-linebreak': 0,
 		'no-continue': 0,
@@ -50,7 +54,11 @@ module.exports = {
 
 		'func-names': 0,
 
-		'space-before-function-paren': ['error', 'never'],
+		'space-before-function-paren': ['error', {
+			anonymous: 'never',
+			named: 'never',
+			asyncArrow: 'always'
+		}],
 
 		'arrow-parens': ['error', 'as-needed'],
 		'arrow-body-style': 0,
@@ -69,10 +77,8 @@ module.exports = {
 			comments: 200
 		}],
 
-		'space-before-function-paren': ['error', {
-			'anonymous': 'never',
-			'named': 'never',
-			'asyncArrow': 'always'
+		'spaced-comment': ['error', 'always', {
+			exceptions: ['*']
 		}],
 
 		'newline-per-chained-call': ['error', {

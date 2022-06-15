@@ -1,6 +1,6 @@
 # mysql
 
-![Build Status](https://github.com/janis-commerce/mysql/workflows/Build%20Status/badge.svg)
+![Build Status](https://github.com/janis-commerce/mysql/workflows/Build%20Status/badge.svg?branch=master)
 [![Coverage Status](https://coveralls.io/repos/github/janis-commerce/mysql/badge.svg?branch=master)](https://coveralls.io/github/janis-commerce/mysql?branch=master)
 [![npm version](https://badge.fury.io/js/%40janiscommerce%2Fmysql.svg)](https://www.npmjs.com/package/@janiscommerce/mysql)
 
@@ -8,14 +8,14 @@ A Driver for **MySQL** Database.
 
 - - -
 
-## Installation
+## :inbox_tray: Installation
 
 ```
 npm install @janiscommerce/mysql
 ```
 - - -
 
-## Configuration
+## :hammer_and_wrench: Configuration
 
 The **TABLES** must be created before start using this driver.
 
@@ -28,7 +28,6 @@ Every field is *optional*.
 * `database`: `[String]` Database name. *Default*: `null`
 * `port`: `[String]` Port where the database is connected. *Default*: 3306
 * `connectionLimit`: `[String]`  A connection limit. *Default*: 500
-* `prefix`: `[String]` if you use some prefix. *Default*: ""
 
 If some Fields has the wrong type will be thrown a `MySQLConfigError`.
 
@@ -40,8 +39,7 @@ const config = {
     password: 'yourPassword',
     database: 'your_database_name',
     port: 3006,
-    connectionLimit: 5000,
-    prefix: 'yourPrefix'
+    connectionLimit: 5000
 }
 
 ```
@@ -79,10 +77,10 @@ const config = {
     - **Returns**, `number` of the quantity of rows were updated correctly.
 
 
-* `get(model, parametres)` **ASYNCHRONOUS**, Search rows in the database.
+* `get(model, parameters)` **ASYNCHRONOUS**, Search rows in the database.
 
     - `model`: a Model instance with the *database*, *tables*, *fields*, *joins* and other data.
-    - `parametres`: *type* `OBJECT`, with the following `keys` to make the query:
+    - `parameters`: *type* `OBJECT`, with the following `keys` to make the query:
         * `fields`: Learn [More](https://github.com/janis-commerce/query-builder/blob/master/docs/Fields.md).
         * `filters`: Learn [More](https://github.com/janis-commerce/query-builder/blob/master/docs/Filters.md).
         * `joins`: Learn [More](https://github.com/janis-commerce/query-builder/blob/master/docs/Joins.md).
@@ -96,18 +94,18 @@ const config = {
     - `model`: a Model instance with the *database*, *tables*, *fields*, *joins* and other data.
     - **Returns**, `Object` with the total count, page size, pages and selected page.
 
-* `remove(model, parametres)` **ASYNCHRONOUS**, Remove rows in the database.
+* `remove(model, parameters)` **ASYNCHRONOUS**, Remove rows in the database.
 
     - `model`: a Model instance with the *database*, *tables*, *fields*, *joins* and other data.
-    - `parametres`: *type* `OBJECT`, with the following `keys` to make the changes:
+    - `parameters`: *type* `OBJECT`, with the following `keys` to make the changes:
         - `filters`: Learn [More](https://github.com/janis-commerce/query-builder/blob/master/docs/Filters.md).
         - `joins`: Learn [More](https://github.com/janis-commerce/query-builder/blob/master/docs/Joins.md).
     - **Returns**, `number` of the quantity of rows were removed correctly.
 
-* `multiRemove(model, parametres)` **ASYNCHRONOUS**, Remove rows in the database.
+* `multiRemove(model, parameters)` **ASYNCHRONOUS**, Remove rows in the database.
 
     - `model`: a Model instance with the *database*, *tables*, *fields*, *joins* and other data.
-    - `parametres`: *type* `ARRAY`, with the following `keys` to make the changes:
+    - `parameters`: *type* `ARRAY`, with the following `keys` to make the changes:
         - `filters`: Learn [More](https://github.com/janis-commerce/query-builder/blob/master/docs/Filters.md).
         - `joins`: Learn [More](https://github.com/janis-commerce/query-builder/blob/master/docs/Joins.md).
     - **Returns**, `number` of the quantity of rows were removed correctly.
@@ -161,7 +159,7 @@ const config = {
 const mysql = new Mysql(config);
 
 // Some Model with the right setup to use
-// fields = id (primary key), name , genre, calification
+// fields = id (primary key), name , genre, score
 const movieModel = new movieModel();
 
 let movieResponse;
@@ -174,8 +172,8 @@ movieItem = {
     id: 1,
     name: 'Titanic',
     genre: 'Drama',
-    calification: 2,
-    nation: 'EEUU' // this field will not be inserted
+    score: 2,
+    nation: 'usa' // this field will not be inserted
 };
 
 try {
@@ -192,7 +190,7 @@ movieItem = {
     id: 1,
     name: 'Titanic',
     genre: 'Drama',
-    calification: 10
+    score: 10
 };
 
 try {
@@ -211,7 +209,7 @@ movieItem = {
     id: 1,
     name: 'Titanic',
     genre: 'Drama',
-    calification: 1
+    score: 1
 };
 
 try {
@@ -231,7 +229,7 @@ movieItem = {
     id: 2,
     name: 'Lord of the Rings 1',
     genre: 'Fantasy',
-    calification: 1
+    score: 1
 };
 
 try {
@@ -252,37 +250,37 @@ movieItems = [
         id: 3,
         name: 'Lord of the Rings 2',
         genre: 'Fantasy',
-        calification: 8
+        score: 8
     },
     {
         id: 4,
         name: 'Avengers 3',
         genre: 'Action',
-        calification: 9
+        score: 9
     },
     {
         id: 5,
         name: 'Lord of the Rings 3',
         genre: 'Fantasy',
-        calification: 9
+        score: 9
     },
     {
         id: 6,
         name: 'Scream',
         genre: 'Terror',
-        calification: 6
+        score: 6
     },
     {
         id: 2,
         name: 'Lord of the Rings 1',
         genre: 'Fantasy',
-        calification: 7
+        score: 7
     },
     {
         id: 7,
         name: 'Sharkanado',
         genre: 'Comedy',
-        calification: 3
+        score: 3
     }
 ];
 
@@ -302,7 +300,7 @@ try {
 
 let params = {
     fields: {
-        calification: 9
+        score: 9
     },
     filters: {
         genre: 'Fantasy'
@@ -330,10 +328,10 @@ try {
     // Response: Array with All movies and his fields
     /*
         [
-            { id: 1, name: 'Titanic', genre: 'Drama', calfication: 1, date_created: 1239218, date_modified: 1239918 },
-            { id: 2, name: 'Lord of the Rings 1', genre: 'Fantasy', calfication: 9, date_created: 1240000, date_modified: 1242000 },
+            { id: 1, name: 'Titanic', genre: 'Drama', score: 1, date_created: 1239218, date_modified: 1239918 },
+            { id: 2, name: 'Lord of the Rings 1', genre: 'Fantasy', score: 9, date_created: 1240000, date_modified: 1242000 },
             ...
-            { id: 4, name: 'Avengers 3', genre: 'Action', calfication: 1, date_created: 1241000, date_modified: 1241000 },
+            { id: 4, name: 'Avengers 3', genre: 'Action', score: 1, date_created: 1241000, date_modified: 1241000 },
             ...
         ]
     */
@@ -371,9 +369,9 @@ try {
     // Response: Array with All movies with fields required and passed the filter
     /*
         [
-            { id: 2, name: 'Lord of the Rings 1', genre: 'Fantasy', calfication: 9, date_created: 1240000, date_modified: 1242000 },
-            { id: 3, name: 'Lord of the Rings 2', genre: 'Fantasy', calfication: 9, date_created: 1241000, date_modified: 1242000 },
-            { id: 5, name: 'Lord of the Rings 3', genre: 'Fantasy', calfication: 9, date_created: 1241000, date_modified: 1242000 }
+            { id: 2, name: 'Lord of the Rings 1', genre: 'Fantasy', score: 9, date_created: 1240000, date_modified: 1242000 },
+            { id: 3, name: 'Lord of the Rings 2', genre: 'Fantasy', score: 9, date_created: 1241000, date_modified: 1242000 },
+            { id: 5, name: 'Lord of the Rings 3', genre: 'Fantasy', score: 9, date_created: 1241000, date_modified: 1242000 }
         ]
     */
     console.log('Movies ', movieResponse); // Print in Console

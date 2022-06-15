@@ -4,12 +4,9 @@ const assert = require('assert');
 const sinon = require('sinon');
 const QueryBuilder = require('@janiscommerce/query-builder');
 
-const { MySQLError } = require('./../lib');
-const MySQL = require('./../index');
+const { MySQL, MySQLError } = require('../');
 
 /* eslint-disable prefer-arrow-callback */
-
-const sandbox = sinon.createSandbox();
 
 class Model {
 
@@ -36,7 +33,7 @@ describe('MySQL module', function() {
 	});
 
 	after(() => {
-		sandbox.restore();
+		sinon.restore();
 	});
 
 	describe('Save Methods', function() {
@@ -45,11 +42,11 @@ describe('MySQL module', function() {
 
 			beforeEach(() => {
 				const knexGetter = { raw: () => true };
-				sandbox.stub(MySQL.prototype, 'knex').get(() => knexGetter);
+				sinon.stub(MySQL.prototype, 'knex').get(() => knexGetter);
 			});
 
 			afterEach(() => {
-				sandbox.restore();
+				sinon.restore();
 			});
 
 			it('should return ID if try to insert a new Item with no Auto-Incremental ID', async function() {
@@ -59,7 +56,7 @@ describe('MySQL module', function() {
 					superhero: 'superman'
 				};
 
-				sandbox.stub(QueryBuilder.prototype, 'insert').callsFake(() => {
+				sinon.stub(QueryBuilder.prototype, 'insert').callsFake(() => {
 					return [0]; // Knex return this if no auto-incremental ID
 				});
 
@@ -76,7 +73,7 @@ describe('MySQL module', function() {
 					superhero: 'supergirl'
 				};
 
-				sandbox.stub(QueryBuilder.prototype, 'insert').callsFake(() => {
+				sinon.stub(QueryBuilder.prototype, 'insert').callsFake(() => {
 					return [itemIdGenerated]; // Knex return this if no auto-incremental ID
 				});
 
@@ -92,7 +89,7 @@ describe('MySQL module', function() {
 					superhero: 'Wolverine'
 				};
 
-				sandbox.stub(QueryBuilder.prototype, 'insert').callsFake(() => {
+				sinon.stub(QueryBuilder.prototype, 'insert').callsFake(() => {
 					return [item.id]; // Knex return this if no auto-incremental ID
 				});
 
@@ -103,7 +100,7 @@ describe('MySQL module', function() {
 
 			it('should throw MySqlError if try to insert an item that already exist', async function() {
 
-				sandbox.stub(QueryBuilder.prototype, 'insert').rejects();
+				sinon.stub(QueryBuilder.prototype, 'insert').rejects();
 
 				const item = {
 					id: 1,
@@ -120,7 +117,7 @@ describe('MySQL module', function() {
 					superhero: 'batman'
 				};
 
-				sandbox.stub(QueryBuilder.prototype, 'save').callsFake(() => {
+				sinon.stub(QueryBuilder.prototype, 'save').callsFake(() => {
 					return [{ affectedRows: 1, insertId: 0 }];
 				});
 
@@ -137,7 +134,7 @@ describe('MySQL module', function() {
 					superhero: 'batman'
 				};
 
-				sandbox.stub(QueryBuilder.prototype, 'save').callsFake(() => {
+				sinon.stub(QueryBuilder.prototype, 'save').callsFake(() => {
 					return [{ affectedRows: 1, insertId: itemIDGenerated }];
 				});
 
@@ -153,7 +150,7 @@ describe('MySQL module', function() {
 					superhero: 'hulk'
 				};
 
-				sandbox.stub(QueryBuilder.prototype, 'save').callsFake(() => {
+				sinon.stub(QueryBuilder.prototype, 'save').callsFake(() => {
 					return [{ affectedRows: 2, insertId: item.id }];
 				});
 
@@ -173,7 +170,7 @@ describe('MySQL module', function() {
 					id: { value: 10, type: 'lesser' }
 				};
 
-				sandbox.stub(QueryBuilder.prototype, 'update').callsFake(() => {
+				sinon.stub(QueryBuilder.prototype, 'update').callsFake(() => {
 					return 2;
 				});
 
@@ -189,7 +186,7 @@ describe('MySQL module', function() {
 					id: { value: 10, type: 'greater' }
 				};
 
-				sandbox.stub(QueryBuilder.prototype, 'update').callsFake(() => {
+				sinon.stub(QueryBuilder.prototype, 'update').callsFake(() => {
 					return 0;
 				});
 
@@ -200,7 +197,7 @@ describe('MySQL module', function() {
 
 			it('should return 1 if try to multi-Insert a new Item', async function() {
 
-				sandbox.stub(QueryBuilder.prototype, 'save').callsFake(() => {
+				sinon.stub(QueryBuilder.prototype, 'save').callsFake(() => {
 					return [{ affectedRows: 1 }];
 				});
 
@@ -215,7 +212,7 @@ describe('MySQL module', function() {
 
 			it('should return the quantity of new items as rows affected if try to multi-Insert new Items', async function() {
 
-				sandbox.stub(QueryBuilder.prototype, 'save').callsFake(() => {
+				sinon.stub(QueryBuilder.prototype, 'save').callsFake(() => {
 					return [{ affectedRows: 3 }];
 				});
 
@@ -231,7 +228,7 @@ describe('MySQL module', function() {
 
 			it('should return the double of quantity of new items as rows affected if try to multi-Insert Items which already exist', async function() {
 
-				sandbox.stub(QueryBuilder.prototype, 'save').callsFake(() => {
+				sinon.stub(QueryBuilder.prototype, 'save').callsFake(() => {
 					return [{ affectedRows: 4 }];
 				});
 
@@ -250,11 +247,11 @@ describe('MySQL module', function() {
 
 			beforeEach(() => {
 				const knexGetter = {};
-				sandbox.stub(MySQL.prototype, 'knex').get(() => knexGetter);
+				sinon.stub(MySQL.prototype, 'knex').get(() => knexGetter);
 			});
 
 			afterEach(() => {
-				sandbox.restore();
+				sinon.restore();
 			});
 
 			it('should return false if try to insert', async function() {
@@ -291,11 +288,11 @@ describe('MySQL module', function() {
 
 			beforeEach(() => {
 				const knexGetter = { raw: () => true };
-				sandbox.stub(MySQL.prototype, 'knex').get(() => knexGetter);
+				sinon.stub(MySQL.prototype, 'knex').get(() => knexGetter);
 			});
 
 			afterEach(() => {
-				sandbox.restore();
+				sinon.restore();
 			});
 
 			it('should return MySqlError if try to insert', async function() {
@@ -327,11 +324,11 @@ describe('MySQL module', function() {
 
 			beforeEach(() => {
 				const knexGetter = { raw: () => true };
-				sandbox.stub(MySQL.prototype, 'knex').get(() => knexGetter);
+				sinon.stub(MySQL.prototype, 'knex').get(() => knexGetter);
 			});
 
 			afterEach(() => {
-				sandbox.restore();
+				sinon.restore();
 			});
 
 			it('should return MySqlError if try to insert', async function() {
@@ -349,7 +346,7 @@ describe('MySQL module', function() {
 			});
 
 			it('should return MySqlError if try to multi-insert', async function() {
-				await assert.rejects(mysql.multiInsert(dummyModel,), { code: MySQLError.codes.EMPTY_FIELDS });
+				await assert.rejects(mysql.multiInsert(dummyModel), { code: MySQLError.codes.EMPTY_FIELDS });
 
 			});
 		});
@@ -364,12 +361,12 @@ describe('MySQL module', function() {
 
 			beforeEach(() => {
 				const knexGetter = { raw: () => true };
-				sandbox.stub(MySQL.prototype, 'knex').get(() => knexGetter);
-				stubGet = sandbox.stub(QueryBuilder.prototype, 'get');
+				sinon.stub(MySQL.prototype, 'knex').get(() => knexGetter);
+				stubGet = sinon.stub(QueryBuilder.prototype, 'get');
 			});
 
 			afterEach(() => {
-				sandbox.restore();
+				sinon.restore();
 			});
 
 			const testParams = (params, expectedParams) => {
@@ -487,12 +484,12 @@ describe('MySQL module', function() {
 		context('when try to get items with invalid configuration', function() {
 
 			afterEach(() => {
-				sandbox.restore();
+				sinon.restore();
 			});
 
 			it('should throw MySqlError if knex is invalid', async function() {
 
-				sandbox.stub(MySQL.prototype, 'knex').get(() => {});
+				sinon.stub(MySQL.prototype, 'knex').get(() => {});
 				await assert.rejects(mysql.get(dummyModel, {}), { code: MySQLError.codes.INVALID_GET });
 
 			});
@@ -514,12 +511,12 @@ describe('MySQL module', function() {
 
 		beforeEach(() => {
 			const knexGetter = { raw: () => true };
-			sandbox.stub(MySQL.prototype, 'knex').get(() => knexGetter);
-			stubRemove = sandbox.stub(QueryBuilder.prototype, 'remove');
+			sinon.stub(MySQL.prototype, 'knex').get(() => knexGetter);
+			stubRemove = sinon.stub(QueryBuilder.prototype, 'remove');
 		});
 
 		afterEach(() => {
-			sandbox.restore();
+			sinon.restore();
 		});
 
 		it('should throw MySqlError with no model', async function() {
@@ -563,12 +560,12 @@ describe('MySQL module', function() {
 
 		beforeEach(() => {
 			const knexGetter = { raw: () => true };
-			sandbox.stub(MySQL.prototype, 'knex').get(() => knexGetter);
-			stubRemove = sandbox.stub(QueryBuilder.prototype, 'remove');
+			sinon.stub(MySQL.prototype, 'knex').get(() => knexGetter);
+			stubRemove = sinon.stub(QueryBuilder.prototype, 'remove');
 		});
 
 		afterEach(() => {
-			sandbox.restore();
+			sinon.restore();
 		});
 
 		it('should call remove() method when multiRemove is called', async function() {
@@ -580,10 +577,10 @@ describe('MySQL module', function() {
 			]);
 
 			assert.deepStrictEqual(results, 2);
-			sandbox.assert.calledTwice(stubRemove);
+			sinon.assert.calledTwice(stubRemove);
 		});
 
-		it('should throw when remove() rejects when mutliRemove is called', async function() {
+		it('should throw when remove() rejects when multiRemove is called', async function() {
 			stubRemove.rejects();
 
 			const params = [{
