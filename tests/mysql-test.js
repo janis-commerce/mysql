@@ -163,7 +163,6 @@ describe('MySQL module', function() {
 				assert.strictEqual(result, item.id);
 			});
 
-
 			it('should return number of rows affected if try to update using filters to match items', async function() {
 
 				const fields = { superhero: 'Mengano' };
@@ -207,7 +206,6 @@ describe('MySQL module', function() {
 					superhero: 'hulk'
 				}]);
 
-
 				assert.strictEqual(result, 1);
 			});
 
@@ -223,7 +221,6 @@ describe('MySQL module', function() {
 					{ id: 6, superhero: 'moon knight' }
 				]);
 
-
 				assert.strictEqual(result, 3);
 			});
 
@@ -237,7 +234,6 @@ describe('MySQL module', function() {
 					{ id: 1, superhero: 'iroman' },
 					{ id: 2, superhero: 'thor' }
 				]);
-
 
 				assert.strictEqual(result, 4);
 			});
