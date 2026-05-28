@@ -2,7 +2,7 @@
 
 const assert = require('assert');
 
-const Utils = require('./../lib/utils');
+const Utils = require('../lib/utils');
 
 /** Setup * */
 

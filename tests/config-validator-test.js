@@ -52,11 +52,9 @@ describe('Config Validator', () => {
 			connectionLimit: 5000
 		};
 
-
 		it('Should not throw error', () => {
 			assert.doesNotThrow(() => ConfigValidator.validate(config));
 		});
 	});
-
 
 });
